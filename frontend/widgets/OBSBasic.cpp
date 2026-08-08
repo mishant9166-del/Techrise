@@ -1703,8 +1703,7 @@ void OBSBasic::OnFirstLoad()
         QPushButton* btn;
     public:
         CornerButtonFilter(QPushButton* b, QObject* parent) : QObject(parent), btn(b) {}
-        bool eventFilter(QObject* obj, QEvent* event) override {
-            (void)obj;
+        bool eventFilter(QObject* /* obj */, QEvent* event) override {
             if (event->type() == QEvent::Resize) {
                 QResizeEvent* re = static_cast<QResizeEvent*>(event);
                 btn->move(re->size().width() - btn->width() - 20, 4);
