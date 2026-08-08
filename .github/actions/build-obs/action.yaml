@@ -61,6 +61,8 @@ runs:
         echo ::group::Install Dependencies
         eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"
         echo "/home/linuxbrew/.linuxbrew/bin:/home/linuxbrew/.linuxbrew/sbin" >> $GITHUB_PATH
+        export HOMEBREW_NO_AUTO_UPDATE=0
+        brew update || true
         brew install --quiet zsh
         echo ::endgroup::
 
