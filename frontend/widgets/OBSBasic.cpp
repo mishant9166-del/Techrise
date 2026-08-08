@@ -18,12 +18,24 @@
 ******************************************************************************/
 
 #include "OBSBasic.hpp"
+#include <LicenseManager.hpp>
+#include <ActivationDialog.hpp>
+#include <dialogs/AccountSuspendedDialog.hpp>
+#include <dialogs/SubscriptionRequiredDialog.hpp>
+#include <QFileDialog>
+#include <QProcess>
+#include <QDesktopServices>
+#include <QUrl>
+#include <QToolBar>
+#include <QDateTime>
+#include <QAction>
 #include "ui-config.h"
 
 #include "ColorSelect.hpp"
 #include "OBSBasicControls.hpp"
 #include "OBSBasicStats.hpp"
 #include "plugin-manager/PluginManager.hpp"
+#include "../dialogs/CustomStreamDialog.hpp"
 
 #include <obs-module.h>
 
@@ -34,6 +46,9 @@
 #include <dialogs/OBSAbout.hpp>
 #include <dialogs/OBSBasicAdvAudio.hpp>
 #include <dialogs/OBSBasicFilters.hpp>
+#include "../dialogs/CustomStreamDialog.hpp"
+#include "../dialogs/SubscriptionRequiredDialog.hpp"
+#include "../LoginDialog.hpp"
 #include <dialogs/OBSBasicInteraction.hpp>
 #include <dialogs/OBSBasicProperties.hpp>
 #include <dialogs/OBSBasicTransform.hpp>
@@ -244,6 +259,27 @@ OBSBasic::OBSBasic(QWidget *parent) : OBSMainWindow(parent), undo_s(ui), ui(new 
 	api = InitializeAPIInterface(this);
 
 	ui->setupUi(this);
+	connect(LicenseManager::instance(), &LicenseManager::licenseInvalidated, this, [this](const QString &reason) {
+		static bool isDialogShowing = false;
+		if (isDialogShowing) return;
+		isDialogShowing = true;
+
+		if (reason == "Your account is blocked by the Techrise admin.") {
+			AccountSuspendedDialog dlg(this);
+			connect(LicenseManager::instance(), &LicenseManager::licenseValidated, &dlg, &QDialog::accept);
+			if (dlg.exec() == QDialog::Rejected) {
+				this->close();
+			}
+		} else {
+			SubscriptionRequiredDialog dlg(reason, this);
+			connect(LicenseManager::instance(), &LicenseManager::licenseValidated, &dlg, &QDialog::accept);
+			if (dlg.exec() == QDialog::Rejected) {
+				this->close(); // Close the app if they exit the dialog
+			}
+		}
+		
+		isDialogShowing = false;
+	});
 	ui->previewDisabledWidget->setVisible(false);
 
 	/* Set up streaming connections */
@@ -342,16 +378,198 @@ OBSBasic::OBSBasic(QWidget *parent) : OBSMainWindow(parent), undo_s(ui), ui(new 
 	connect(ui->transitionDuration, &QSpinBox::valueChanged, this,
 		[this](int value) { SetTransitionDuration(value); });
 
+	/* Left Navigation Bar */
+	leftNavBar = new QToolBar(this);
+	leftNavBar->setObjectName("leftNavBar");
+	leftNavBar->setFloatable(false);
+	leftNavBar->setMovable(false);
+	leftNavBar->setOrientation(Qt::Vertical);
+	leftNavBar->setIconSize(QSize(24, 24));
+	leftNavBar->setToolButtonStyle(Qt::ToolButtonIconOnly);
+	leftNavBar->setStyleSheet("QToolBar { border: none; padding-top: 10px; } QToolButton { margin: 5px; }");
+
+	QAction *actionMixer = leftNavBar->addAction(QIcon(":/settings/images/settings/audio.svg"), "Audio & Transitions");
+	QAction *actionSources = leftNavBar->addAction(QIcon(":/res/images/sources/window.svg"), "Sources");
+	QAction *actionTextProps = leftNavBar->addAction(QIcon(":/res/images/sources/text.svg"), "Text");
+	QAction *actionColorCorr = leftNavBar->addAction(QIcon(":/res/images/filter.svg"), "Color Correction");
+	QAction *actionChromaKey = leftNavBar->addAction(QIcon(":/res/images/filter.svg"), "Chroma Key");
+
+
+	auto showSingleDock = [this](std::vector<QDockWidget*> docksToShow, bool forceShow = false) {
+		QDockWidget* docks[] = {ui->mixerDock, controlsDock, ui->transitionsDock, ui->sourcesDock, propertiesDock};
+		bool allVisible = true;
+		for (auto dock : docksToShow) {
+			if (dock && !dock->isVisible()) allVisible = false;
+		}
+		for (auto dock : docks) {
+			if (dock && std::find(docksToShow.begin(), docksToShow.end(), dock) == docksToShow.end()) {
+				dock->setVisible(false);
+			}
+		}
+		if (!allVisible || forceShow) {
+			for (auto dock : docksToShow) {
+				if (dock) {
+					dock->setVisible(true);
+					dock->raise();
+				}
+			}
+		} else {
+			for (auto dock : docksToShow) {
+				if (dock) dock->setVisible(false);
+			}
+		}
+	};
+
+	connect(actionMixer, &QAction::triggered, this, [this, showSingleDock]() {
+		showSingleDock({ui->mixerDock, ui->transitionsDock});
+	});
+
+	connect(actionSources, &QAction::triggered, this, [this, showSingleDock]() {
+		showSingleDock({ui->sourcesDock});
+	});
+
+	connect(actionTextProps, &QAction::triggered, this, [this, showSingleDock]() {
+		if (propertiesDock && propertiesDock->isVisible() && propertiesDock->property("sourceType").toString() == "text") {
+			propertiesDock->setVisible(false);
+			return;
+		}
+		obs_source_t *targetSource = nullptr;
+		auto cb = [](void *param, obs_source_t *source) {
+			obs_source_t **target = (obs_source_t **)param;
+			const char *id = obs_source_get_unversioned_id(source);
+			if (strcmp(id, "text_gdiplus") == 0 || strcmp(id, "text_ft2_source") == 0) {
+				*target = source;
+				return false;
+			}
+			return true;
+		};
+		obs_enum_sources(cb, &targetSource);
+
+		if (targetSource) {
+			this->CreatePropertiesDock(targetSource, "text");
+			showSingleDock({propertiesDock}, true);
+		} else {
+			OBSScene scene = this->GetCurrentScene();
+			if (scene) {
+				std::string newName = "Text (GDI+)";
+				int i = 2;
+				OBSSourceAutoRelease source;
+				while ((source = obs_get_source_by_name(newName.c_str()))) {
+					newName = "Text (GDI+) " + std::to_string(i++);
+				}
+#ifdef _WIN32
+				obs_source_t *newSource = obs_source_create("text_gdiplus", newName.c_str(), nullptr, nullptr);
+#else
+				obs_source_t *newSource = obs_source_create("text_ft2_source", newName.c_str(), nullptr, nullptr);
+#endif
+				if (newSource) {
+					obs_scene_add(scene, newSource);
+					this->CreatePropertiesDock(newSource, "text");
+					showSingleDock({propertiesDock}, true);
+					obs_source_release(newSource);
+				}
+			}
+		}
+	});
+
+	auto showFilterProperties = [this, showSingleDock](const char *filterId, const char *filterName, const char *dockType) {
+		if (propertiesDock && propertiesDock->isVisible() && propertiesDock->property("sourceType").toString() == dockType) {
+			propertiesDock->setVisible(false);
+			return;
+		}
+		obs_source_t *targetSource = nullptr;
+		OBSSource sceneSource = this->GetCurrentSceneSource();
+		if (sceneSource) {
+			obs_scene_t *scene = obs_scene_from_source(sceneSource);
+			if (scene) {
+				auto enum_func = [](obs_scene_t *, obs_sceneitem_t *si, void *param) {
+					if (obs_sceneitem_selected(si)) {
+						*(obs_source_t **)param = obs_sceneitem_get_source(si);
+						return false; // stop
+					}
+					return true;
+				};
+				obs_scene_enum_items(scene, enum_func, &targetSource);
+			}
+
+			if (!targetSource) {
+				// Fallback to first video device globally if nothing is selected
+				auto fallback_func = [](void *param, obs_source_t *source) {
+					const char *id = obs_source_get_unversioned_id(source);
+					blog(LOG_INFO, "fallback_func: inspecting source '%s' (id: %s)", obs_source_get_name(source), id);
+					if (strcmp(id, "dshow_input") == 0 && obs_source_active(source)) {
+						*(obs_source_t **)param = source;
+						blog(LOG_INFO, "fallback_func: found active camera %s", obs_source_get_name(source));
+						return false; // stop
+					}
+					return true;
+				};
+				obs_enum_sources(fallback_func, &targetSource);
+			}
+
+			if (!targetSource) {
+				// Fallback to first item in the scene if no camera is found
+				auto first_item_func = [](obs_scene_t *, obs_sceneitem_t *si, void *param) {
+					*(obs_source_t **)param = obs_sceneitem_get_source(si);
+					return false; // stop at first
+				};
+				obs_scene_enum_items(scene, first_item_func, &targetSource);
+			}
+
+			if (!targetSource) {
+				targetSource = sceneSource;
+			}
+		}
+
+		if (targetSource) {
+			obs_source_t *filter = obs_source_get_filter_by_name(targetSource, filterName);
+			if (!filter) {
+				filter = obs_source_create(filterId, filterName, nullptr, nullptr);
+				if (filter) {
+					obs_source_set_enabled(filter, false);
+					obs_source_filter_add(targetSource, filter);
+				}
+			}
+			if (filter) {
+				this->CreatePropertiesDock(filter, dockType);
+				showSingleDock({propertiesDock}, true);
+				obs_source_release(filter);
+			}
+		}
+	};
+
+	// connect(actionColorCorr, &QAction::triggered, this, [showFilterProperties]() { showFilterProperties("color_filter", "Color Correction"); });
+	// connect(actionChromaKey, &QAction::triggered, this, [showFilterProperties]() { showFilterProperties("chroma_key_filter", "Chroma Key"); });
+
+	
+	connect(actionColorCorr, &QAction::triggered, this, [showFilterProperties]() { showFilterProperties("color_filter", "Color Correction", "color_filter"); });
+	connect(actionChromaKey, &QAction::triggered, this, [showFilterProperties]() { showFilterProperties("chroma_key_filter", "Chroma Key", "chroma_key_filter"); });
+
+
+	addToolBar(Qt::LeftToolBarArea, leftNavBar);
+
 	/* Main window default layout */
 	setDockCornersVertical(true);
 
+	/* Move scenes dock to the bottom side for ManyCam style */
+	addDockWidget(Qt::BottomDockWidgetArea, ui->scenesDock);
+	
+	/* Move other docks to the left side */
+	addDockWidget(Qt::LeftDockWidgetArea, ui->sourcesDock);
+
 	/* Scenes and Sources dock on left
 	 * This specific arrangement can't be set up in Qt Designer */
-	addDockWidget(Qt::LeftDockWidgetArea, ui->scenesDock);
-	splitDockWidget(ui->scenesDock, ui->sourcesDock, Qt::Vertical);
-	int sideDockWidth = std::min(width() * 30 / 100, 320);
-	resizeDocks({ui->scenesDock, ui->sourcesDock}, {sideDockWidth, sideDockWidth}, Qt::Horizontal);
-	addDockWidget(Qt::BottomDockWidgetArea, controlsDock);
+	addDockWidget(Qt::LeftDockWidgetArea, ui->mixerDock);
+	addDockWidget(Qt::LeftDockWidgetArea, ui->transitionsDock);
+
+	splitDockWidget(ui->sourcesDock, ui->mixerDock, Qt::Vertical);
+	splitDockWidget(ui->mixerDock, ui->transitionsDock, Qt::Vertical);
+		int sideDockWidth = std::min(width() * 20 / 100, 260);
+	resizeDocks({ui->sourcesDock, ui->mixerDock, controlsDock},
+		{sideDockWidth, sideDockWidth, sideDockWidth}, Qt::Horizontal);
+
+	ui->transitionsDock->setVisible(false);
+
 
 	startingDockLayout = saveState();
 
@@ -378,7 +596,7 @@ OBSBasic::OBSBasic(QWidget *parent) : OBSMainWindow(parent), undo_s(ui), ui(new 
 	ui->scenes->setAttribute(Qt::WA_MacShowFocusRect, false);
 	ui->sources->setAttribute(Qt::WA_MacShowFocusRect, false);
 
-	bool sceneGrid = config_get_bool(App()->GetUserConfig(), "BasicWindow", "gridMode");
+	bool sceneGrid = true; // Force ManyCam style grid mode
 	ui->scenes->SetGridMode(sceneGrid);
 
 	if (sceneGrid)
@@ -512,12 +730,15 @@ OBSBasic::OBSBasic(QWidget *parent) : OBSMainWindow(parent), undo_s(ui), ui(new 
 
 	/* Setup dock toggle action
 	 * And hide all docks before restoring parent geometry */
-#define SETUP_DOCK(dock)                                    \
-	setupDockAction(dock);                              \
-	ui->menuDocks->addAction(dock->toggleViewAction()); \
+#define SETUP_DOCK(dock)                                                    \
+	dock->setFeatures(QDockWidget::DockWidgetMovable |                      \
+	                  QDockWidget::DockWidgetFloatable);                    \
+	setupDockAction(dock);                                                  \
+	ui->menuDocks->addAction(dock->toggleViewAction());                     \
 	dock->setVisible(false);
 
 	SETUP_DOCK(ui->scenesDock);
+	ui->scenesDock->setTitleBarWidget(new QWidget(ui->scenesDock));
 	SETUP_DOCK(ui->sourcesDock);
 	SETUP_DOCK(ui->mixerDock);
 	SETUP_DOCK(ui->transitionsDock);
@@ -591,6 +812,61 @@ static const double scaled_vals[] = {1.0, 1.25, (1.0 / 0.75), 1.5, (1.0 / 0.6), 
 #else // Windows/Linux
 #define DEFAULT_CONTAINER "hybrid_mp4"
 #endif
+
+void OBSBasic::onAddPDFClicked()
+{
+    QString file = QFileDialog::getOpenFileName(this,
+        "Select PDF", "", "*.pdf");
+
+    if (file.isEmpty())
+        return;
+
+    obs_data_t *settings = obs_data_create();
+    obs_data_set_bool(settings, "is_local_file", true);
+    obs_data_set_string(settings, "local_file", file.toUtf8().constData());
+    obs_data_set_int(settings, "width", 1920);
+    obs_data_set_int(settings, "height", 1080);
+
+    QFileInfo fi(file);
+    QString sourceName = fi.baseName().isEmpty() ? "PDF Source" : fi.baseName();
+
+    // try browser_source first
+    obs_source_t *bs = obs_source_create(
+        "browser_source",
+        sourceName.toUtf8().constData(),
+        settings,
+        NULL
+    );
+
+    obs_data_release(settings);
+
+    if (!bs) {
+        // Fallback to window capture if browser_source is not installed
+        QProcess::startDetached(file);
+
+        obs_data_t *wc_settings = obs_data_create();
+        obs_data_set_string(wc_settings, "window", "Chrome"); // generic match
+
+        bs = obs_source_create(
+            "window_capture",
+            sourceName.toUtf8().constData(),
+            wc_settings,
+            NULL
+        );
+        obs_data_release(wc_settings);
+    }
+
+    if (!bs) return;
+
+    obs_source_t *scene_source = obs_frontend_get_current_scene();
+    if (scene_source) {
+        obs_scene_t *scene = obs_scene_from_source(scene_source);
+        obs_scene_add(scene, bs);
+        obs_source_release(scene_source);
+    }
+    obs_source_release(bs);
+}
+
 
 bool OBSBasic::InitBasicConfigDefaults()
 {
@@ -1045,6 +1321,7 @@ void OBSBasic::OBSInit()
 #endif
 
 	vcamEnabled = (obs_get_output_flags(VIRTUAL_CAM_ID) & OBS_OUTPUT_VIDEO) != 0;
+	blog(LOG_INFO, "=== vcamEnabled evaluated: %d (flags: %u) ===", vcamEnabled, obs_get_output_flags(VIRTUAL_CAM_ID));
 	if (vcamEnabled) {
 		emit VirtualCamEnabled();
 	}
@@ -1156,8 +1433,9 @@ void OBSBasic::OBSInit()
 #ifdef _WIN32
 	SetWin32DropStyle(this);
 
-	if (!hideWindowOnStart)
-		show();
+		if (!hideWindowOnStart) {
+		show(); // Handled by OBSApp splash screen
+	}
 #endif
 
 	bool alwaysOnTop = config_get_bool(App()->GetUserConfig(), "BasicWindow", "AlwaysOnTop");
@@ -1179,9 +1457,14 @@ void OBSBasic::OBSInit()
 	}
 
 #ifndef _WIN32
-	if (!hideWindowOnStart)
-		show();
+	if (!hideWindowOnStart) {
+		show(); // Handled by OBSApp splash screen
+	}
 #endif
+	
+// Force Audio Mixer to use horizontal layout
+	config_set_bool(App()->GetUserConfig(), "BasicWindow", "VerticalVolumeControl", false);
+
 
 	// Set up Audio Mixer dock
 	AudioMixer *audioMixer = new AudioMixer(this);
@@ -1219,15 +1502,32 @@ void OBSBasic::OBSInit()
 		NewYouTubeAppDock();
 #endif
 
-	const char *dockStateStr = config_get_string(App()->GetUserConfig(), "BasicWindow", "DockState");
+	bool minimalisticReset = config_get_bool(App()->GetUserConfig(), "BasicWindow", "MinimalisticResetDone2");
+	if (!minimalisticReset) {
+		config_set_bool(App()->GetUserConfig(), "BasicWindow", "MinimalisticResetDone2", true);
+		config_save_safe(App()->GetUserConfig(), "tmp", nullptr);
 
-	if (!dockStateStr) {
 		on_resetDocks_triggered(true);
 	} else {
-		QByteArray dockState = QByteArray::fromBase64(QByteArray(dockStateStr));
-		if (!restoreState(dockState))
+		const char *dockStateStr = config_get_string(App()->GetUserConfig(), "BasicWindow", "DockState");
+
+		if (!dockStateStr) {
 			on_resetDocks_triggered(true);
-	}
+	}else {
+			QByteArray dockState = QByteArray::fromBase64(QByteArray(dockStateStr));
+			if (!restoreState(dockState))
+				on_resetDocks_triggered(true);
+		}}
+
+			/* Ensure scenes dock is visible and at the bottom after restoring layout state */
+	ui->scenesDock->setVisible(true);
+	addDockWidget(Qt::BottomDockWidgetArea, ui->scenesDock);
+
+	/* Force transitions and audio to the left side and split them */
+	addDockWidget(Qt::LeftDockWidgetArea, ui->mixerDock);
+	addDockWidget(Qt::LeftDockWidgetArea, ui->transitionsDock);
+	splitDockWidget(ui->mixerDock, ui->transitionsDock, Qt::Vertical);
+
 
 	bool pre23Defaults = config_get_bool(App()->GetUserConfig(), "General", "Pre23Defaults");
 	if (pre23Defaults) {
@@ -1341,9 +1641,9 @@ void OBSBasic::OBSInit()
 	UpdatePreviewProgramIndicators();
 	OnFirstLoad();
 
-	if (!hideWindowOnStart)
-		activateWindow();
-
+	if (!hideWindowOnStart) {
+		activateWindow(); // Handled by OBSApp splash screen
+	}
 	/* ------------------------------------------- */
 	/* display warning message for failed modules  */
 
@@ -1365,6 +1665,16 @@ void OBSBasic::OBSInit()
 void OBSBasic::OnFirstLoad()
 {
 	OnEvent(OBS_FRONTEND_EVENT_FINISHED_LOADING);
+		
+		// Instant offline check to make the popup appear immediately after the window is shown
+	QString offlineReason;
+	if (!LicenseManager::instance()->IsLicenseActive(&offlineReason)) {
+		QTimer::singleShot(0, this, [this, offlineReason]() {
+			QString finalReason = offlineReason.isEmpty() ? "Your Techrise subscription has expired. Please renew your license." : offlineReason;
+			emit LicenseManager::instance()->licenseInvalidated(finalReason);
+		});
+	}
+
 
 #ifdef WHATSNEW_ENABLED
 	/* Attempt to load init screen if available */
@@ -1377,12 +1687,99 @@ void OBSBasic::OnFirstLoad()
 	}
 #endif
 
+ bool hasLicense = LicenseManager::instance()->IsLicenseActive();
+    QString proText = hasLicense ? "PRO" : "Buy PRO";
+    
+    QPushButton* buyProBtn = new QPushButton(proText, this);
+    buyProBtn->setObjectName("buyProBtn");
+    buyProBtn->setCursor(Qt::PointingHandCursor);
+    buyProBtn->setFixedSize(85, 24);
+    buyProBtn->setStyleSheet("QPushButton#buyProBtn { background-color: transparent; color: #f39c12; border: 1px solid #f39c12; border-radius: 4px; padding: 2px 10px; font-weight: bold; } QPushButton#buyProBtn:hover { background-color: #f39c12; color: white; }");
+    
+    ui->menubar->setNativeMenuBar(false);
+
+	// Ensure button is floating exactly in the empty space of the top menu bar using an event filter
+    class CornerButtonFilter : public QObject {
+        QPushButton* btn;
+    public:
+        CornerButtonFilter(QPushButton* b, QObject* parent) : QObject(parent), btn(b) {}
+        bool eventFilter(QObject* obj, QEvent* event) override {
+            if (event->type() == QEvent::Resize) {
+                QResizeEvent* re = static_cast<QResizeEvent*>(event);
+                btn->move(re->size().width() - btn->width() - 20, 4);
+                btn->raise();
+            }
+            return false;
+        }
+    };
+    this->installEventFilter(new CornerButtonFilter(buyProBtn, this));
+    buyProBtn->move(this->width() - buyProBtn->width() - 20, 4);
+    buyProBtn->raise();
+    buyProBtn->show();
+
+    connect(LicenseManager::instance(), &LicenseManager::licenseValidated, this, [buyProBtn]() {
+        buyProBtn->setText("PRO");
+    });
+
+    connect(buyProBtn, &QPushButton::clicked, this, [this]() {
+        bool currentHasLicense = LicenseManager::instance()->IsLicenseActive();
+        if (currentHasLicense) {
+            QDateTime expiry = QDateTime::fromString(LicenseManager::instance()->GetLicenseExpiry(), Qt::ISODate);
+            QString formattedDate = expiry.isValid() ? expiry.toString("MMMM d, yyyy") : "Lifetime / Unknown";
+            QString userName = LicenseManager::instance()->GetCachedUserName();
+            QString userEmail = LicenseManager::instance()->GetCachedUserEmail();
+            
+            QMessageBox msgBox(this);
+            msgBox.setWindowTitle("PRO Account Details");
+            msgBox.setTextFormat(Qt::RichText);
+            msgBox.setText("<h2 style='color: #f39c12;'>PRO License Active</h2>"
+                           "<p style='font-size: 13px;'>Thank you for being a PRO member! Your support allows us to keep improving TechRise.</p>"
+                           "<br><b style='color: #888;'>Name:</b> <font color='white'>" + userName + "</font>"
+                           "<br><b style='color: #888;'>Email:</b> <font color='white'>" + userEmail + "</font>"
+                           "<br><b style='color: #888;'>Status:</b> <font color='#2ecc71'>Active</font>"
+                           "<br><b style='color: #888;'>Expiry Date:</b> <font color='white'>" + formattedDate + "</font>");
+            msgBox.setStyleSheet("QMessageBox { background-color: #2b2b2b; }"
+                                 "QLabel { color: white; }");
+            msgBox.exec();
+        } else {
+            const char* userId = config_get_string(App()->GetAppConfig(), "General", "UserId");
+            QString url = QString("http://localhost:5173/upgrade?uid=%1&name=%2&email=%3")
+                            .arg(QString(QUrl::toPercentEncoding(userId ? userId : "")))
+                            .arg(QString(QUrl::toPercentEncoding(LicenseManager::instance()->GetCachedUserName())))
+                            .arg(QString(QUrl::toPercentEncoding(LicenseManager::instance()->GetCachedUserEmail())));
+            QDesktopServices::openUrl(QUrl(url));
+        }
+    });
+
+
+
 	Auth::Load();
 
 	bool showLogViewerOnStartup = config_get_bool(App()->GetUserConfig(), "LogViewer", "ShowLogStartup");
 
 	if (showLogViewerOnStartup)
 		on_actionViewCurrentLog_triggered();
+		 QAction *logoutAction = new QAction("Log Out", this);
+    connect(logoutAction, &QAction::triggered, this, [this]() {
+        config_set_string(App()->GetAppConfig(), "General", "UserId", "");
+        config_save_safe(App()->GetAppConfig(), "tmp", nullptr);
+        restart = true;
+        close();
+    });
+    ui->menu_File->addSeparator();
+    ui->menu_File->addAction(logoutAction);
+
+    // Explicitly connect custom buttons to renamed slots to avoid QMetaObject::connectSlotsByName double-firing
+    connect(ui->actionCustomAddSource, &QPushButton::clicked, this, &OBSBasic::on_actionAddSource_triggered);
+    connect(ui->actionCustomRecord, &QPushButton::clicked, this, &OBSBasic::CustomRecordClicked);
+    connect(ui->actionCustomStream, &QPushButton::clicked, this, &OBSBasic::CustomStreamClicked);
+    connect(ui->actionCustomScreenshot, &QPushButton::clicked, this, &OBSBasic::CustomScreenshotClicked);
+    connect(ui->actionCustomStudioMode, &QPushButton::clicked, this, &OBSBasic::CustomStudioModeClicked);
+    connect(ui->actionCustomSettings, &QPushButton::clicked, this, &OBSBasic::CustomSettingsClicked);
+
+    // Hide lower toolbars as requested
+    ui->scenesToolbar->setVisible(false);
+    ui->sourcesToolbar->setVisible(false);
 }
 
 OBSBasic::~OBSBasic()
@@ -2022,6 +2419,33 @@ void OBSBasic::UpdateEditMenu()
 		filter_count = obs_source_filter_count(source);
 	}
 
+	if (propertiesDock && propertiesDock->isVisible()) {
+		if (totalCount == 1) {
+			OBSSceneItem sceneItem = ui->sources->Get(GetTopSelectedSourceItem());
+			OBSSource source = obs_sceneitem_get_source(sceneItem);
+			OBSSource currentPropSource = properties ? properties->GetSource() : nullptr;
+
+			if (currentPropSource && source && currentPropSource != source) {
+				QString type = propertiesDock->property("sourceType").toString();
+				if (type == "color_filter" || type == "chroma_key_filter") {
+					obs_source_t *filter = obs_source_get_filter_by_name(source, type == "color_filter" ? "Color Correction" : "Chroma Key");
+					if (filter && filter != currentPropSource) {
+						CreatePropertiesDock(filter, type.toUtf8().constData());
+						obs_source_release(filter);
+					}
+				} else if (type == "text") {
+					const char *id = obs_source_get_unversioned_id(source);
+					if (strcmp(id, "text_gdiplus") == 0 || strcmp(id, "text_ft2_source") == 0) {
+						CreatePropertiesDock(source, "text");
+					}
+				}
+			}
+		}
+	}
+
+
+
+
 	int videoCount = 0;
 	bool canTransformMultiple = false;
 	for (int i = 0; i < totalCount; i++) {
@@ -2072,25 +2496,7 @@ void OBSBasic::UpdateEditMenu()
 
 void OBSBasic::UpdateTitleBar()
 {
-	stringstream name;
-
-	const char *profile = config_get_string(App()->GetUserConfig(), "Basic", "Profile");
-	const char *sceneCollection = config_get_string(App()->GetUserConfig(), "Basic", "SceneCollection");
-
-	name << "OBS ";
-	if (previewProgramMode)
-		name << "Studio ";
-
-	name << App()->GetVersionString(false);
-	if (safe_mode)
-		name << " (" << Str("TitleBar.SafeMode") << ")";
-	if (App()->IsPortableMode())
-		name << " - " << Str("TitleBar.PortableMode");
-
-	name << " - " << Str("TitleBar.Profile") << ": " << profile;
-	name << " - " << Str("TitleBar.Scenes") << ": " << sceneCollection;
-
-	setWindowTitle(QT_UTF8(name.str().c_str()));
+		setWindowTitle(QT_UTF8("TechRise v1.0.0"));
 }
 
 OBSBasic *OBSBasic::Get()
@@ -2186,3 +2592,82 @@ void OBSBasic::on_actionOpenPluginManager_triggered()
 {
 	App()->pluginManagerOpenDialog();
 }
+void OBSBasic::CustomRecordClicked()
+{
+	RecordActionTriggered();
+}
+
+void OBSBasic::CustomStreamClicked()
+{
+	CustomStreamDialog dlg(this);
+	dlg.exec();
+}
+
+void OBSBasic::CustomScreenshotClicked()
+{
+	ScreenshotProgram();
+}
+
+void OBSBasic::CustomStudioModeClicked()
+{
+	blog(LOG_INFO, "CustomStudioModeClicked CALLED");
+	TogglePreviewProgramMode();
+	blog(LOG_INFO, "CustomStudioModeClicked FINISHED");
+}
+
+void OBSBasic::CustomSettingsClicked()
+{
+	blog(LOG_INFO, "CustomSettingsClicked CALLED");
+	on_action_Settings_triggered();
+	blog(LOG_INFO, "CustomSettingsClicked FINISHED");
+}
+
+
+#include "../dialogs/SubscriptionRequiredDialog.hpp"
+// #include "../dialogs/CustomStreamDialog.hpp"
+#include "../LoginDialog.hpp"
+
+void OBSBasic::on_actionPro_triggered()
+{
+    SubscriptionRequiredDialog dlg("Upgrade to Pro for more features!", this);
+    dlg.exec();
+}
+
+void OBSBasic::on_actionLogout_triggered()
+{
+    // Simple logout: hide main window, show login
+    this->hide();
+    LoginDialog login(nullptr);
+    if (login.exec() == QDialog::Accepted) {
+        this->show();
+    } else {
+        this->close();
+    }
+}
+
+// void OBSBasic::ShowSingleDock(std::vector<QDockWidget*> docksToShow, bool forceShow)
+// {
+// 	QDockWidget* docks[] = {ui->mixerDock, controlsDock, ui->transitionsDock, ui->sourcesDock, propertiesDock};
+// 	bool allVisible = true;
+// 	for (auto dock : docksToShow) {
+// 		if (dock && !dock->isVisible()) allVisible = false;
+// 	}
+// 	for (auto dock : docks) {
+// 		if (dock && std::find(docksToShow.begin(), docksToShow.end(), dock) == docksToShow.end()) {
+// 			dock->setVisible(false);
+// 		}
+// 	}
+// 	if (!allVisible || forceShow) {
+// 		for (auto dock : docksToShow) {
+// 			if (dock) {
+// 				dock->setVisible(true);
+// 				dock->raise();
+// 			}
+// 		}
+// 	} else {
+// 		for (auto dock : docksToShow) {
+// 			if (dock) dock->setVisible(false);
+// 		}
+// 	}
+// }
+

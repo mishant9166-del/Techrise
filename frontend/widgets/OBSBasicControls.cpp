@@ -65,6 +65,17 @@ OBSBasicControls::OBSBasicControls(OBSBasic *main) : QFrame(nullptr), ui(new Ui:
 	ui->virtualCamButton->setVisible(false);
 	ui->virtualCamConfigButton->setVisible(false);
 
+	ui->modeSwitch->setVisible(false);
+	ui->settingsButton->setVisible(false);
+
+	connect(ui->moreOptionsButton, &QPushButton::clicked, this, [this]() {
+		bool v = ui->modeSwitch->isVisible();
+		ui->modeSwitch->setVisible(!v);
+		ui->settingsButton->setVisible(!v);
+		if (v) ui->moreOptionsButton->setText("More Options ▼");
+		else ui->moreOptionsButton->setText("Less Options ▲");
+	});
+
 	/* Set up state update connections */
 	connect(main, &OBSBasic::StreamingPreparing, this, &OBSBasicControls::StreamingPreparing);
 	connect(main, &OBSBasic::StreamingStarting, this, &OBSBasicControls::StreamingStarting);

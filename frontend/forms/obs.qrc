@@ -1,5 +1,11 @@
 <RCC>
   <qresource prefix="/res">
+    <file>images/custom_video.svg</file>
+    <file>images/custom_stream.svg</file>
+    <file>images/custom_camera.svg</file>
+    <file>images/custom_settings.svg</file>
+    <file>images/custom_studiomode.svg</file>
+    <file>images/splash.jpg</file>
     <file>images/layout-horizontal.svg</file>
     <file>images/layout-vertical.svg</file>
     <file>images/close.svg</file>
@@ -50,6 +56,7 @@
     <file>images/sources/scene.svg</file>
     <file>images/sources/slideshow.svg</file>
     <file>images/sources/text.svg</file>
+    <file>images/sources/screenshot.svg</file>
     <file>images/sources/window.svg</file>
     <file>images/sources/default.svg</file>
     <file>images/sources/windowaudio.svg</file>

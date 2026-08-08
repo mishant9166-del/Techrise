@@ -95,6 +95,8 @@ void OBSBasic::LoadSceneListOrder(obs_data_array_t *array)
 
 		ReorderItemByName(ui->scenes, name, (int)i);
 	}
+		ui->scenes->EnsureAddSceneItem();
+	ui->scenes->SyncThumbnailLayout();
 }
 
 OBSScene OBSBasic::GetCurrentScene()
@@ -110,6 +112,12 @@ void OBSBasic::AddScene(OBSSource source)
 	QListWidgetItem *item = new QListWidgetItem(QT_UTF8(name));
 	SetOBSRef(item, OBSScene(scene));
 	ui->scenes->insertItem(ui->scenes->currentRow() + 1, item);
+	ui->scenes->EnsureAddSceneItem();
+
+	SceneItemWidget *sceneWidget = new SceneItemWidget(source, item, ui->scenes);
+	int count = ui->scenes->thumbnailLayout->count();
+	ui->scenes->thumbnailLayout->insertWidget(count - 1, sceneWidget, 0, Qt::AlignTop);
+
 
 	obs_hotkey_register_source(
 		source, "OBSBasic.SelectScene", Str("Basic.Hotkeys.SelectScene"),
@@ -186,6 +194,19 @@ void OBSBasic::RemoveScene(OBSSource source)
 	if (sel != nullptr) {
 		if (sel == ui->scenes->currentItem())
 			ui->sources->Clear();
+
+			
+		for (int i = 0; i < ui->scenes->thumbnailLayout->count(); ++i) {
+			QLayoutItem *layoutItem = ui->scenes->thumbnailLayout->itemAt(i);
+			if (layoutItem) {
+				SceneItemWidget *sceneWidget = qobject_cast<SceneItemWidget*>(layoutItem->widget());
+				if (sceneWidget && sceneWidget->GetItem() == sel) {
+					ui->scenes->thumbnailLayout->removeWidget(sceneWidget);
+					delete sceneWidget;
+					break;
+				}
+			}
+		}
 		delete sel;
 	}
 
@@ -658,23 +679,7 @@ void OBSBasic::on_actionAddScene_triggered()
 		placeHolderText = format.arg(++i);
 	}
 
-	bool accepted = NameDialog::AskForName(this, QTStr("Basic.Main.AddSceneDlg.Title"),
-					       QTStr("Basic.Main.AddSceneDlg.Text"), name, placeHolderText);
-
-	if (accepted) {
-		if (name.empty()) {
-			OBSMessageBox::warning(this, QTStr("NoNameEntered.Title"), QTStr("NoNameEntered.Text"));
-			on_actionAddScene_triggered();
-			return;
-		}
-
-		OBSSourceAutoRelease source = obs_get_source_by_name(name.c_str());
-		if (source) {
-			OBSMessageBox::warning(this, QTStr("NameExists.Title"), QTStr("NameExists.Text"));
-
-			on_actionAddScene_triggered();
-			return;
-		}
+	std::string nameStr = QT_TO_UTF8(placeHolderText);
 
 		auto undo_fn = [](const std::string &data) {
 			obs_source_t *t = obs_get_source_by_name(data.c_str());
@@ -689,12 +694,11 @@ void OBSBasic::on_actionAddScene_triggered()
 			obs_source_t *source = obs_scene_get_source(scene);
 			SetCurrentScene(source, true);
 		};
-		undo_s.add_action(QTStr("Undo.Add").arg(QString(name.c_str())), undo_fn, redo_fn, name, name);
+		undo_s.add_action(QTStr("Undo.Add").arg(QString(nameStr.c_str())), undo_fn, redo_fn, nameStr, nameStr);
 
-		OBSSceneAutoRelease scene = obs_scene_create(name.c_str());
+		OBSSceneAutoRelease scene = obs_scene_create(nameStr.c_str());
 		obs_source_t *scene_source = obs_scene_get_source(scene);
 		SetCurrentScene(scene_source);
-	}
 }
 
 void OBSBasic::on_actionRemoveScene_triggered()
@@ -719,7 +723,7 @@ void OBSBasic::ChangeSceneIndex(bool relative, int offset, int invalidIdx)
 	item->setSelected(true);
 	currentScene = GetOBSRef<OBSScene>(item).Get();
 	ui->scenes->blockSignals(false);
-
+	ui->scenes->SyncThumbnailLayout();
 	OBSProjector::UpdateMultiviewProjectors();
 }
 
@@ -874,7 +878,7 @@ static void RenameListItem(OBSBasic *parent, QListWidget *listWidget, obs_source
 
 	if (foundSource || name.empty()) {
 		listItem->setText(QT_UTF8(prevName));
-
+		
 		if (foundSource) {
 			OBSMessageBox::warning(parent, QTStr("NameExists.Title"), QTStr("NameExists.Text"));
 		} else if (name.empty()) {
@@ -895,6 +899,7 @@ static void RenameListItem(OBSBasic *parent, QListWidget *listWidget, obs_source
 		parent->undo_s.add_action(QTStr("Undo.Rename").arg(name.c_str()), undo, redo, source_uuid, source_uuid);
 
 		listItem->setText(QT_UTF8(name.c_str()));
+		
 		obs_source_set_name(source, name.c_str());
 	}
 }

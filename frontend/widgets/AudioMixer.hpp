@@ -85,6 +85,7 @@ private:
 	QAction *layoutButton{nullptr};
 	QAction *advAudio{nullptr};
 	QPushButton *optionsButton{nullptr};
+	QPushButton *addMicButton{nullptr};
 	QPushButton *toggleHiddenButton{nullptr};
 
 	QPointer<QMenu> mixerMenu;

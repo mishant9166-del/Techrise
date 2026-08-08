@@ -65,6 +65,8 @@ public:
 	OBSBasicProperties(QWidget *parent, OBSSource source_);
 	~OBSBasicProperties();
 
+	OBSSource GetSource() const { return source; }
+
 	void Init();
 
 protected:

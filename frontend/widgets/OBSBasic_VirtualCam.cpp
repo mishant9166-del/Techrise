@@ -27,16 +27,28 @@
 
 void OBSBasic::StartVirtualCam()
 {
-	if (!outputHandler || !outputHandler->virtualCam)
+	blog(LOG_INFO, "=== StartVirtualCam CALLED ===");
+	blog(LOG_INFO, "outputHandler: %p", outputHandler.get());
+	if (outputHandler) {
+		blog(LOG_INFO, "outputHandler->virtualCam: %p", outputHandler->virtualCam.Get());
+	}
+	if (!outputHandler || !outputHandler->virtualCam) {
+		blog(LOG_INFO, "StartVirtualCam: outputHandler or virtualCam is null!");
 		return;
-	if (outputHandler->VirtualCamActive())
+	}
+	if (outputHandler->VirtualCamActive()) {
+		blog(LOG_INFO, "StartVirtualCam: VirtualCamActive is true!");
 		return;
-	if (disableOutputsRef)
+	}
+	if (disableOutputsRef) {
+		blog(LOG_INFO, "StartVirtualCam: disableOutputsRef is > 0");
 		return;
+	}
 
 	SaveProject();
 
 	outputHandler->StartVirtualCam();
+	blog(LOG_INFO, "=== StartVirtualCam EXECUTED ===");
 }
 
 void OBSBasic::StopVirtualCam()

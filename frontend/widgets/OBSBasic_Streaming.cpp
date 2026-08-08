@@ -257,7 +257,7 @@ void OBSBasic::StreamingStart()
 	OnActivate();
 
 #ifdef YOUTUBE_ENABLED
-	if (YouTubeAppDock::IsYTServiceSelected())
+	if (YouTubeAppDock::IsYTServiceSelected() && youtubeAppDock)
 		youtubeAppDock->IngestionStarted();
 #endif
 
@@ -345,7 +345,7 @@ void OBSBasic::StreamingStop(int code, QString last_error)
 	OnDeactivate();
 
 #ifdef YOUTUBE_ENABLED
-	if (YouTubeAppDock::IsYTServiceSelected())
+	if (YouTubeAppDock::IsYTServiceSelected() && youtubeAppDock)
 		youtubeAppDock->IngestionStopped();
 #endif
 
@@ -451,4 +451,83 @@ bool OBSBasic::StreamingActive()
 	if (!outputHandler)
 		return false;
 	return outputHandler->StreamingActive();
+}
+bool OBSBasic::IsSecondaryStreamActive(const std::string& platform) {
+	return secondaryStreams.find(platform) != secondaryStreams.end();
+}
+
+void OBSBasic::StopSecondaryStream(const std::string& platform) {
+	auto it = secondaryStreams.find(platform);
+	if (it != secondaryStreams.end()) {
+		if (it->second) {
+			obs_output_stop(it->second);
+		}
+		secondaryStreams.erase(it);
+	}
+	auto it2 = secondaryServices.find(platform);
+	if (it2 != secondaryServices.end()) {
+		secondaryServices.erase(it2);
+	}
+}
+
+static void SecondaryStreamStart(void* data, calldata_t*)
+{
+	std::string* platform = static_cast<std::string*>(data);
+	QMetaObject::invokeMethod(OBSBasic::Get(), "SecondaryStreamStarted", Q_ARG(QString, QString::fromStdString(*platform)));
+}
+
+static void SecondaryStreamStop(void* data, calldata_t* params)
+{
+	std::string* platform = static_cast<std::string*>(data);
+	int code = (int)calldata_int(params, "code");
+	QMetaObject::invokeMethod(OBSBasic::Get(), "SecondaryStreamStopped", Q_ARG(QString, QString::fromStdString(*platform)), Q_ARG(int, code));
+}
+
+bool OBSBasic::StartSecondaryStream(const std::string& platform, obs_service_t* service) {
+	if (!obs_frontend_streaming_active()) {
+		return false;
+	}
+
+	obs_output_t* main_output = obs_frontend_get_streaming_output();
+	if (!main_output) {
+		return false;
+	}
+
+	obs_encoder_t* video_enc = obs_output_get_video_encoder(main_output);
+	obs_encoder_t* audio_enc = obs_output_get_audio_encoder(main_output, 0);
+
+	if (!video_enc || !audio_enc) {
+		obs_output_release(main_output);
+		return false;
+	}
+
+	obs_data_t* settings = obs_output_get_settings(main_output);
+	std::string output_name = "secondary_stream_" + platform;
+	obs_output_t* raw_output = obs_output_create("rtmp_output", output_name.c_str(), settings, nullptr);
+	obs_data_release(settings);
+	obs_output_release(main_output);
+	
+	if (!raw_output) {
+		return false;
+	}
+
+	OBSOutputAutoRelease new_output = raw_output;
+
+	obs_output_set_video_encoder(new_output, video_enc);
+	obs_output_set_audio_encoder(new_output, audio_enc, 0);
+	obs_output_set_service(new_output, service);
+
+	if (obs_output_start(new_output)) {
+		secondaryStreams[platform] = new_output;
+		secondaryServices[platform] = service;
+		
+		std::string* platform_ptr = new std::string(platform);
+		signal_handler_t *sh = obs_output_get_signal_handler(new_output);
+		signal_handler_connect(sh, "start", SecondaryStreamStart, platform_ptr);
+		signal_handler_connect(sh, "stop", SecondaryStreamStop, platform_ptr);
+		
+		return true;
+	}
+
+	return false;
 }

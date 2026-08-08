@@ -18,7 +18,12 @@
 #include "OBSApp.hpp"
 
 #include <components/Multiview.hpp>
+#include <dialogs/AccountSuspendedDialog.hpp>
 #include <dialogs/LogUploadDialog.hpp>
+#include <dialogs/SubscriptionRequiredDialog.hpp>
+
+#include "ActivationDialog.hpp"
+#include "LoginDialog.hpp"
 #include <plugin-manager/PluginManager.hpp>
 #include <utility/CrashHandler.hpp>
 #include <utility/OBSEventFilter.hpp>
@@ -27,6 +32,7 @@
 #include <utility/models/branches.hpp>
 #endif
 #include <widgets/OBSBasic.hpp>
+#include "LicenseManager.hpp"
 
 #if !defined(_WIN32) && !defined(__APPLE__)
 #include <obs-nix-platform.h>
@@ -36,6 +42,11 @@
 #endif
 #include <qt-wrappers.hpp>
 
+#include <QMessageBox>
+#include <QAbstractEventDispatcher>
+#include <QSplashScreen>
+#include <QTimer>
+#include <QDateTime>
 #include <QCheckBox>
 #include <QDesktopServices>
 #if defined(_WIN32) || defined(ENABLE_SPARKLE_UPDATER)
@@ -1230,6 +1241,23 @@ bool OBSApp::OBSInit()
 	if (!StartupOBS(locale.c_str(), GetProfilerNameStore()))
 		return false;
 
+	const char *savedUserId = config_get_string(appConfig, "General", "UserId");
+	
+	if (!savedUserId || strlen(savedUserId) == 0) {
+		LoginDialog loginDlg(nullptr);
+		if (loginDlg.exec() != QDialog::Accepted) {
+			return false; // User closed or failed
+		}
+		config_set_string(appConfig, "General", "UserId", loginDlg.getUserId().toUtf8().constData());
+		config_set_string(appConfig, "General", "UserName", loginDlg.getUserName().toUtf8().constData());
+		config_set_string(appConfig, "General", "UserEmail", loginDlg.getUserEmail().toUtf8().constData());
+		config_save_safe(appConfig, "tmp", nullptr);
+	}
+
+	QString licenseError;
+	// Subscription validation is now handled inside OBSBasic after startup
+	LicenseManager::instance()->StartPeriodicValidation();
+
 	libobs_initialized = true;
 
 	obs_set_ui_task_handler(ui_task_handler);
@@ -1262,6 +1290,14 @@ bool OBSApp::OBSInit()
 	setQuitOnLastWindowClosed(false);
 
 	thumbnailManager = new ThumbnailManager(this);
+
+	int64_t splashStartTime = QDateTime::currentMSecsSinceEpoch();
+	QPixmap splashPixmap(":/res/images/splash.jpg");
+	splashPixmap = splashPixmap.scaled(350, 350, Qt::KeepAspectRatio, Qt::SmoothTransformation);
+	QSplashScreen *splash = new QSplashScreen(splashPixmap);
+	
+	splash->show();
+	qApp->processEvents();
 
 	mainWindow = new OBSBasic();
 
@@ -1297,6 +1333,20 @@ bool OBSApp::OBSInit()
 
 	connect(crashHandler_.get(), &OBS::CrashHandler::crashLogUploadFinished, this,
 		[this](const QString &fileUrl) { emit this->logUploadFinished(OBS::LogFileType::CrashLog, fileUrl); });
+
+	int64_t endTime = QDateTime::currentMSecsSinceEpoch();
+	int64_t elapsed = endTime - splashStartTime;
+
+	auto finishSplash = [splash]() {
+		splash->finish(App()->GetMainWindow());
+		splash->deleteLater();
+	};
+
+	if (elapsed < 5000) {
+		QTimer::singleShot(5000 - elapsed, splash, finishSplash);
+	} else {
+		finishSplash();
+	}
 
 	return true;
 }

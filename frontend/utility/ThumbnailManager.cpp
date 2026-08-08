@@ -26,7 +26,7 @@
 #include <QImageWriter>
 
 constexpr int kMinimumThumbnailUpdateInterval = 100;
-constexpr int kThumbnailUpdateInterval = 5000;
+constexpr int kThumbnailUpdateInterval = 200;
 
 namespace {
 bool updateItem(ThumbnailItem *item)

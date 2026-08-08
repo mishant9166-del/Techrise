@@ -72,7 +72,24 @@ configure_file(cmake/templates/ui-config.h.in ui-config.h)
 
 target_sources(
   obs-studio
-  PRIVATE obs-main.cpp OBSStudioAPI.cpp OBSStudioAPI.hpp OBSApp.cpp OBSApp.hpp OBSApp_Themes.cpp ui-config.h
+  PRIVATE
+    obs-main.cpp
+    OBSStudioAPI.cpp
+    OBSStudioAPI.hpp
+    OBSApp.cpp
+    OBSApp.hpp
+    OBSApp_Themes.cpp
+    ui-config.h
+    LicenseManager.cpp
+    LicenseManager.hpp
+    ActivationDialog.hpp
+    ActivationDialog.cpp
+    LoginDialog.hpp
+    LoginDialog.cpp
+    dialogs/AccountSuspendedDialog.hpp
+    dialogs/AccountSuspendedDialog.cpp
+    dialogs/SubscriptionRequiredDialog.hpp
+    dialogs/SubscriptionRequiredDialog.cpp
 )
 
 if(OS_WINDOWS)

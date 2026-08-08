@@ -25,6 +25,107 @@
 #include <QObject>
 #include <QDesktopServices>
 #include <QUuid>
+#include <QStyledItemDelegate>
+#include <QPainter>
+
+#include <QMap>
+#include <QImageReader>
+#include <QStylePainter>
+#include <QStyleOptionComboBox>
+
+static QMap<QString, QPixmap> g_bgPixmapCache;
+
+class BgTypeComboBox : public QComboBox {
+public:
+	BgTypeComboBox(QWidget *parent = nullptr) : QComboBox(parent) {}
+	
+	void paintEvent(QPaintEvent *e) override {
+		QComboBox::paintEvent(e); // Draw base (border, arrow, etc.)
+
+		QStyleOptionComboBox opt;
+		initStyleOption(&opt);
+		QRect textRect = style()->subControlRect(QStyle::CC_ComboBox, &opt, QStyle::SC_ComboBoxEditField, this);
+		
+		// Adjust slightly to not paint over borders
+		textRect.adjust(2, 2, -2, -2);
+
+		QVariant var = currentData(Qt::UserRole);
+		if (var.userType() == QMetaType::QByteArray) {
+			QString path = QString::fromUtf8(var.toByteArray());
+			if (path != "custom" && path != "") {
+				QPixmap pm;
+				if (g_bgPixmapCache.contains(path)) {
+					pm = g_bgPixmapCache.value(path);
+				} else {
+					QImageReader reader(path);
+					if (reader.size().isValid()) {
+						reader.setScaledSize(QSize(400, 75));
+						pm = QPixmap::fromImage(reader.read());
+					}
+					g_bgPixmapCache.insert(path, pm);
+				}
+				
+				if (!pm.isNull()) {
+					QPainter p(this);
+					p.setClipRect(textRect);
+					p.drawPixmap(textRect, pm);
+				}
+			}
+		}
+	}
+};
+
+class BgTypeDelegate : public QStyledItemDelegate {
+public:
+	BgTypeDelegate(QObject *parent = nullptr) : QStyledItemDelegate(parent) {}
+
+	void paint(QPainter *painter, const QStyleOptionViewItem &option, const QModelIndex &index) const override
+	{
+		QVariant var = index.data(Qt::UserRole);
+		if (var.userType() == QMetaType::QByteArray) {
+			QString path = QString::fromUtf8(var.toByteArray());
+			if (path != "custom" && path != "") {
+				QPixmap pixmap;
+				if (g_bgPixmapCache.contains(path)) {
+					pixmap = g_bgPixmapCache.value(path);
+				} else {
+					QImageReader reader(path);
+					if (reader.size().isValid()) {
+						reader.setScaledSize(QSize(400, 75));
+						pixmap = QPixmap::fromImage(reader.read());
+					}
+					g_bgPixmapCache.insert(path, pixmap);
+				}
+				
+				if (!pixmap.isNull()) {
+					painter->save();
+					painter->drawPixmap(option.rect, pixmap);
+					
+					if (option.state & QStyle::State_Selected) {
+						painter->setOpacity(0.3);
+						painter->fillRect(option.rect, option.palette.highlight());
+					}
+					painter->restore();
+					return;
+				}
+			}
+		}
+		QStyledItemDelegate::paint(painter, option, index);
+	}
+
+	QSize sizeHint(const QStyleOptionViewItem &option, const QModelIndex &index) const override
+	{
+		QVariant var = index.data(Qt::UserRole);
+		if (var.userType() == QMetaType::QByteArray) {
+			QString path = QString::fromUtf8(var.toByteArray());
+			if (path != "custom" && path != "") {
+				return QSize(400, 75); // Half the previous height
+			}
+		}
+		return QStyledItemDelegate::sizeHint(option, index);
+	}
+};
+
 #include "double-slider.hpp"
 #include "spinbox-ignorewheel.hpp"
 #include "moc_properties-view.cpp"
@@ -545,13 +646,23 @@ static void AddComboItem(QComboBox *combo, obs_property_t *prop, size_t idx)
 {
 	const char *name = obs_property_list_item_name(prop, idx);
 	QVariant var = propertyListToQVariant(prop, idx);
+	const char *prop_name = obs_property_name(prop);
 
-	combo->addItem(QT_UTF8(name), var);
+	if (prop_name && strcmp(prop_name, "bg_type") == 0 && var.userType() == QMetaType::QByteArray) {
+		QString path = QString::fromUtf8(var.toByteArray());
+		if (path != "custom" && path != "") {
+			combo->addItem("", var);
+		} else {
+			combo->addItem(QT_UTF8(name), var);
+		}
+	} else {
+		combo->addItem(QT_UTF8(name), var);
+	}
 
 	if (!obs_property_list_item_disabled(prop, idx))
 		return;
 
-	int index = combo->findText(QT_UTF8(name));
+	int index = combo->count() - 1;
 	if (index < 0)
 		return;
 
@@ -643,7 +754,18 @@ QWidget *OBSPropertiesView::AddList(obs_property_t *prop, bool &warning)
 
 	int idx = -1;
 
-	QComboBox *combo = new QComboBox();
+	QComboBox *combo;
+	if (name && strcmp(name, "bg_type") == 0) {
+		combo = new BgTypeComboBox();
+		QListView *view = new QListView(combo);
+		view->setStyleSheet(
+			"QListView::item { padding: 0px; margin: 0px; border: none; }");
+		combo->setView(view);
+		combo->setItemDelegate(new BgTypeDelegate(combo));
+	} else {
+		combo = new QComboBox();
+	}
+
 	for (size_t i = 0; i < count; i++)
 		AddComboItem(combo, prop, i);
 

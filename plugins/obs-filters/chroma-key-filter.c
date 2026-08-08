@@ -2,6 +2,9 @@
 #include <graphics/matrix4.h>
 #include <graphics/vec2.h>
 #include <graphics/vec4.h>
+#include <graphics/image-file.h>
+#include <util/platform.h>
+#include <util/dstr.h>
 
 /* clang-format off */
 
@@ -15,6 +18,8 @@
 #define SETTING_SIMILARITY             "similarity"
 #define SETTING_SMOOTHNESS             "smoothness"
 #define SETTING_SPILL                  "spill"
+#define SETTING_BG_TYPE                "bg_type"
+#define SETTING_BG_PATH                "bg_path"
 
 #define TEXT_SDR_ONLY_INFO             obs_module_text("SdrOnlyInfo")
 #define TEXT_OPACITY                   obs_module_text("Opacity")
@@ -26,6 +31,8 @@
 #define TEXT_SIMILARITY                obs_module_text("Similarity")
 #define TEXT_SMOOTHNESS                obs_module_text("Smoothness")
 #define TEXT_SPILL                     obs_module_text("ColorSpillReduction")
+#define TEXT_BG_TYPE                   obs_module_text("Background Image")
+#define TEXT_BG_PATH                   obs_module_text("Custom Image Path")
 
 /* clang-format on */
 
@@ -54,6 +61,9 @@ struct chroma_key_filter_data {
 	float similarity;
 	float smoothness;
 	float spill;
+
+	gs_image_file_t bg_image;
+	bool bg_image_loaded;
 };
 
 struct chroma_key_filter_data_v2 {
@@ -81,6 +91,9 @@ struct chroma_key_filter_data_v2 {
 	float similarity;
 	float smoothness;
 	float spill;
+
+	gs_image_file_t bg_image;
+	bool bg_image_loaded;
 };
 
 static const char *chroma_key_name(void *unused)
@@ -115,7 +128,7 @@ static inline void color_settings_update_v1(struct chroma_key_filter_data *filte
 
 static inline void color_settings_update_v2(struct chroma_key_filter_data_v2 *filter, obs_data_t *settings)
 {
-	filter->opacity = (float)obs_data_get_double(settings, SETTING_OPACITY);
+	filter->opacity = (float)obs_data_get_double(settings, SETTING_OPACITY) / 100.0f;
 
 	double contrast = obs_data_get_double(settings, SETTING_CONTRAST);
 	contrast = (contrast < 0.0) ? (1.0 / (-contrast + 1.0)) : (contrast + 1.0);
@@ -194,6 +207,31 @@ static void chroma_key_update_v1(void *data, obs_data_t *settings)
 
 	color_settings_update_v1(filter, settings);
 	chroma_settings_update_v1(filter, settings);
+
+	const char *bg_type = obs_data_get_string(settings, SETTING_BG_TYPE);
+	const char *bg_path = NULL;
+	if (bg_type && strcmp(bg_type, "custom") == 0) {
+		bg_path = obs_data_get_string(settings, SETTING_BG_PATH);
+	} else {
+		bg_path = bg_type;
+	}
+
+	if (filter->bg_image_loaded) {
+		obs_enter_graphics();
+		gs_image_file_free(&filter->bg_image);
+		obs_leave_graphics();
+		filter->bg_image_loaded = false;
+	}
+
+	if (bg_path && *bg_path) {
+		gs_image_file_init(&filter->bg_image, bg_path);
+		filter->bg_image_loaded = filter->bg_image.loaded;
+		if (filter->bg_image_loaded) {
+			obs_enter_graphics();
+			gs_image_file_init_texture(&filter->bg_image);
+			obs_leave_graphics();
+		}
+	}
 }
 
 static void chroma_key_update_v2(void *data, obs_data_t *settings)
@@ -202,11 +240,42 @@ static void chroma_key_update_v2(void *data, obs_data_t *settings)
 
 	color_settings_update_v2(filter, settings);
 	chroma_settings_update_v2(filter, settings);
+
+	const char *bg_type = obs_data_get_string(settings, SETTING_BG_TYPE);
+	const char *bg_path = NULL;
+	if (bg_type && strcmp(bg_type, "custom") == 0) {
+		bg_path = obs_data_get_string(settings, SETTING_BG_PATH);
+	} else {
+		bg_path = bg_type;
+	}
+
+	if (filter->bg_image_loaded) {
+		obs_enter_graphics();
+		gs_image_file_free(&filter->bg_image);
+		obs_leave_graphics();
+		filter->bg_image_loaded = false;
+	}
+
+	if (bg_path && *bg_path) {
+		gs_image_file_init(&filter->bg_image, bg_path);
+		filter->bg_image_loaded = filter->bg_image.loaded;
+		if (filter->bg_image_loaded) {
+			obs_enter_graphics();
+			gs_image_file_init_texture(&filter->bg_image);
+			obs_leave_graphics();
+		}
+	}
 }
 
 static void chroma_key_destroy_v1(void *data)
 {
 	struct chroma_key_filter_data *filter = data;
+
+	if (filter->bg_image_loaded) {
+		obs_enter_graphics();
+		gs_image_file_free(&filter->bg_image);
+		obs_leave_graphics();
+	}
 
 	if (filter->effect) {
 		obs_enter_graphics();
@@ -220,6 +289,12 @@ static void chroma_key_destroy_v1(void *data)
 static void chroma_key_destroy_v2(void *data)
 {
 	struct chroma_key_filter_data_v2 *filter = data;
+
+	if (filter->bg_image_loaded) {
+		obs_enter_graphics();
+		gs_image_file_free(&filter->bg_image);
+		obs_leave_graphics();
+	}
 
 	if (filter->effect) {
 		obs_enter_graphics();
@@ -240,6 +315,12 @@ static void *chroma_key_create_v1(obs_data_t *settings, obs_source_t *context)
 	obs_enter_graphics();
 
 	filter->effect = gs_effect_create_from_file(effect_path, NULL);
+	if (filter->bg_image_loaded) {
+		obs_enter_graphics();
+		gs_image_file_free(&filter->bg_image);
+		obs_leave_graphics();
+	}
+
 	if (filter->effect) {
 		filter->color_param = gs_effect_get_param_by_name(filter->effect, "color");
 		filter->contrast_param = gs_effect_get_param_by_name(filter->effect, "contrast");
@@ -275,6 +356,12 @@ static void *chroma_key_create_v2(obs_data_t *settings, obs_source_t *context)
 	obs_enter_graphics();
 
 	filter->effect = gs_effect_create_from_file(effect_path, NULL);
+	if (filter->bg_image_loaded) {
+		obs_enter_graphics();
+		gs_image_file_free(&filter->bg_image);
+		obs_leave_graphics();
+	}
+
 	if (filter->effect) {
 		filter->opacity_param = gs_effect_get_param_by_name(filter->effect, "opacity");
 		filter->contrast_param = gs_effect_get_param_by_name(filter->effect, "contrast");
@@ -310,6 +397,23 @@ static void chroma_key_render_v1(void *data, gs_effect_t *effect)
 
 	if (!obs_source_process_filter_begin(filter->context, GS_RGBA, OBS_ALLOW_DIRECT_RENDERING))
 		return;
+
+	if (filter->bg_image_loaded && filter->bg_image.texture) {
+		gs_effect_t *default_effect = obs_get_base_effect(OBS_EFFECT_DEFAULT);
+		gs_technique_t *tech = gs_effect_get_technique(default_effect, "Draw");
+		
+		gs_technique_begin(tech);
+		gs_technique_begin_pass(tech, 0);
+		gs_effect_set_texture_srgb(gs_effect_get_param_by_name(default_effect, "image"), filter->bg_image.texture);
+		
+		gs_matrix_push();
+		gs_matrix_scale3f((float)width / (float)filter->bg_image.cx, (float)height / (float)filter->bg_image.cy, 1.0f);
+		gs_draw_sprite(filter->bg_image.texture, 0, filter->bg_image.cx, filter->bg_image.cy);
+		gs_matrix_pop();
+		
+		gs_technique_end_pass(tech);
+		gs_technique_end(tech);
+	}
 
 	vec2_set(&pixel_size, 1.0f / (float)width, 1.0f / (float)height);
 
@@ -374,6 +478,18 @@ static void chroma_key_render_v2(void *data, gs_effect_t *effect)
 	}
 }
 
+
+static bool bg_type_changed(obs_properties_t *props, obs_property_t *p, obs_data_t *settings)
+{
+	const char *type = obs_data_get_string(settings, SETTING_BG_TYPE);
+	bool is_custom = type && strcmp(type, "custom") == 0;
+	obs_property_t *path_prop = obs_properties_get(props, SETTING_BG_PATH);
+	obs_property_set_visible(path_prop, is_custom);
+	
+	UNUSED_PARAMETER(p);
+	return true;
+}
+
 static bool key_type_changed(obs_properties_t *props, obs_property_t *p, obs_data_t *settings)
 {
 	const char *type = obs_data_get_string(settings, SETTING_COLOR_TYPE);
@@ -408,6 +524,35 @@ static obs_properties_t *chroma_key_properties_v1(void *data)
 	obs_properties_add_float_slider(props, SETTING_BRIGHTNESS, TEXT_BRIGHTNESS, -1.0, 1.0, 0.01);
 	obs_properties_add_float_slider(props, SETTING_GAMMA, TEXT_GAMMA, -1.0, 1.0, 0.01);
 
+
+	obs_property_t *p_bg = obs_properties_add_list(props, SETTING_BG_TYPE, TEXT_BG_TYPE, OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_STRING);
+	obs_property_list_add_string(p_bg, obs_module_text("None"), "");
+	
+	os_glob_t *glob = NULL;
+	if (os_glob("F:/Techrise/background/*", 0, &glob) == 0) {
+		for (size_t i = 0; i < glob->gl_pathc; i++) {
+			struct os_globent *ent = &glob->gl_pathv[i];
+			if (!ent->directory) {
+				const char *filename = strrchr(ent->path, '/');
+				if (filename) filename++;
+				else filename = ent->path;
+				
+				const char *ext = os_get_path_extension(filename);
+				if (ext && (astrcmpi(ext, ".jpg") == 0 || astrcmpi(ext, ".jpeg") == 0 || 
+				            astrcmpi(ext, ".png") == 0 || astrcmpi(ext, ".bmp") == 0 || 
+				            astrcmpi(ext, ".gif") == 0 || astrcmpi(ext, ".tga") == 0)) {
+					obs_property_list_add_string(p_bg, filename, ent->path);
+				}
+			}
+		}
+		os_globfree(glob);
+	}
+	obs_property_list_add_string(p_bg, obs_module_text("Custom..."), "custom");
+	obs_property_set_modified_callback(p_bg, bg_type_changed);
+
+	obs_properties_add_path(props, SETTING_BG_PATH, TEXT_BG_PATH, OBS_PATH_FILE,
+				"Image Files (*.bmp *.jpg *.jpeg *.tga *.gif *.png);;All Files (*.*)", NULL);
+
 	UNUSED_PARAMETER(data);
 	return props;
 }
@@ -437,6 +582,35 @@ static obs_properties_t *chroma_key_properties_v2(void *data)
 	obs_properties_add_float_slider(props, SETTING_BRIGHTNESS, TEXT_BRIGHTNESS, -1.0, 1.0, 0.0001);
 	obs_properties_add_float_slider(props, SETTING_GAMMA, TEXT_GAMMA, -1.0, 1.0, 0.01);
 
+
+	obs_property_t *p_bg = obs_properties_add_list(props, SETTING_BG_TYPE, TEXT_BG_TYPE, OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_STRING);
+	obs_property_list_add_string(p_bg, obs_module_text("None"), "");
+	
+	os_glob_t *glob = NULL;
+	if (os_glob("F:/Techrise/background/*", 0, &glob) == 0) {
+		for (size_t i = 0; i < glob->gl_pathc; i++) {
+			struct os_globent *ent = &glob->gl_pathv[i];
+			if (!ent->directory) {
+				const char *filename = strrchr(ent->path, '/');
+				if (filename) filename++;
+				else filename = ent->path;
+				
+				const char *ext = os_get_path_extension(filename);
+				if (ext && (astrcmpi(ext, ".jpg") == 0 || astrcmpi(ext, ".jpeg") == 0 || 
+				            astrcmpi(ext, ".png") == 0 || astrcmpi(ext, ".bmp") == 0 || 
+				            astrcmpi(ext, ".gif") == 0 || astrcmpi(ext, ".tga") == 0)) {
+					obs_property_list_add_string(p_bg, filename, ent->path);
+				}
+			}
+		}
+		os_globfree(glob);
+	}
+	obs_property_list_add_string(p_bg, obs_module_text("Custom..."), "custom");
+	obs_property_set_modified_callback(p_bg, bg_type_changed);
+
+	obs_properties_add_path(props, SETTING_BG_PATH, TEXT_BG_PATH, OBS_PATH_FILE,
+				"Image Files (*.bmp *.jpg *.jpeg *.tga *.gif *.png);;All Files (*.*)", NULL);
+
 	UNUSED_PARAMETER(data);
 	return props;
 }
@@ -449,7 +623,7 @@ static void chroma_key_defaults_v1(obs_data_t *settings)
 	obs_data_set_default_double(settings, SETTING_GAMMA, 0.0);
 	obs_data_set_default_int(settings, SETTING_KEY_COLOR, 0x00FF00);
 	obs_data_set_default_string(settings, SETTING_COLOR_TYPE, "green");
-	obs_data_set_default_int(settings, SETTING_SIMILARITY, 400);
+	obs_data_set_default_int(settings, SETTING_SIMILARITY, 440);
 	obs_data_set_default_int(settings, SETTING_SMOOTHNESS, 80);
 	obs_data_set_default_int(settings, SETTING_SPILL, 100);
 }
@@ -462,7 +636,7 @@ static void chroma_key_defaults_v2(obs_data_t *settings)
 	obs_data_set_default_double(settings, SETTING_GAMMA, 0.0);
 	obs_data_set_default_int(settings, SETTING_KEY_COLOR, 0x00FF00);
 	obs_data_set_default_string(settings, SETTING_COLOR_TYPE, "green");
-	obs_data_set_default_int(settings, SETTING_SIMILARITY, 400);
+	obs_data_set_default_int(settings, SETTING_SIMILARITY, 440);
 	obs_data_set_default_int(settings, SETTING_SMOOTHNESS, 80);
 	obs_data_set_default_int(settings, SETTING_SPILL, 100);
 }

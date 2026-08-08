@@ -175,6 +175,68 @@ AudioMixer::AudioMixer(QWidget *parent) : QFrame(parent)
 	createMixerContextMenu();
 	optionsButton->setMenu(mixerMenu);
 
+	addMicButton = new QPushButton(mixerToolbar);
+	addMicButton->setText("Add Mic");
+	addMicButton->setToolTip("Add Microphone");
+	idian::Utils::addClass(addMicButton, "toolbar-button");
+	idian::Utils::addClass(addMicButton, "text-bold");
+
+	connect(addMicButton, &QPushButton::clicked, this, [this]() {
+		OBSBasic *main = reinterpret_cast<OBSBasic *>(App()->GetMainWindow());
+		if (!main) return;
+
+		QMenu menu;
+		
+#if defined(_WIN32)
+		const char *source_id = "wasapi_input_capture";
+#elif defined(__APPLE__)
+		const char *source_id = "coreaudio_input_capture";
+#else
+		const char *source_id = "pulse_input_capture";
+#endif
+
+		obs_properties_t *props = obs_get_source_properties(source_id);
+		if (props) {
+			obs_property_t *prop = obs_properties_get(props, "device_id");
+			if (prop) {
+				size_t count = obs_property_list_item_count(prop);
+				for (size_t i = 0; i < count; i++) {
+					const char *name = obs_property_list_item_name(prop, i);
+					const char *val = obs_property_list_item_string(prop, i);
+					
+					QString qName = name;
+					QString qVal = val;
+					QAction *action = menu.addAction(qName);
+					connect(action, &QAction::triggered, this, [main, source_id, qName, qVal]() {
+						std::string newName = qName.toUtf8().constData();
+						int i = 2;
+						OBSSourceAutoRelease existingSource;
+						while ((existingSource = obs_get_source_by_name(newName.c_str()))) {
+							newName = qName.toUtf8().constData() + std::string(" ") + std::to_string(i++);
+						}
+						
+						obs_data_t *settings = obs_data_create();
+						obs_data_set_string(settings, "device_id", qVal.toUtf8().constData());
+						
+						obs_source_t *source = obs_source_create(source_id, newName.c_str(), settings, nullptr);
+						obs_data_release(settings);
+						
+						if (source) {
+							OBSScene scene = main->GetCurrentScene();
+							if (scene) {
+								obs_scene_add(scene, source);
+							}
+							obs_source_release(source);
+						}
+					});
+				}
+			}
+			obs_properties_destroy(props);
+		}
+		
+		menu.exec(this->addMicButton->mapToGlobal(QPoint(0, -menu.sizeHint().height())));
+	});
+
 	toggleHiddenButton = new QPushButton(mixerToolbar);
 	toggleHiddenButton->setCheckable(true);
 	toggleHiddenButton->setChecked(showHidden);
@@ -190,6 +252,9 @@ AudioMixer::AudioMixer(QWidget *parent) : QFrame(parent)
 
 	mixerToolbar->addSeparator();
 	mixerToolbar->addWidget(spacer);
+	mixerToolbar->addSeparator();
+
+	mixerToolbar->addWidget(addMicButton);
 	mixerToolbar->addSeparator();
 
 	mixerToolbar->addAction(layoutButton);

@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="UTF-8"?>
+<?xml version='1.0' encoding='utf-8'?>
 <ui version="4.0">
  <author>Lain</author>
  <class>OBSBasic</class>
@@ -31,7 +31,7 @@
     <normaloff>:/res/images/obs.png</normaloff>:/res/images/obs.png</iconset>
   </property>
   <property name="styleSheet">
-   <string notr="true"/>
+   <string notr="true" />
   </property>
   <property name="dockOptions">
    <set>QMainWindow::AllowNestedDocks|QMainWindow::AllowTabbedDocks</set>
@@ -229,8 +229,8 @@
               </property>
               <property name="minimumSize">
                <size>
-                <width>32</width>
-                <height>32</height>
+                <width>40</width>
+                <height>40</height>
                </size>
               </property>
               <property name="focusPolicy">
@@ -239,7 +239,7 @@
               <property name="contextMenuPolicy">
                <enum>Qt::CustomContextMenu</enum>
               </property>
-              <addaction name="actionRemoveSource"/>
+              <addaction name="actionRemoveSource" />
              </widget>
             </item>
             <item row="2" column="1">
@@ -287,7 +287,7 @@
                   <string>Basic.MainMenu.Edit.Scale.ZoomOut</string>
                  </property>
                  <property name="text">
-                  <string/>
+                  <string />
                  </property>
                  <property name="icon">
                   <iconset resource="obs.qrc">
@@ -344,7 +344,7 @@
                   <string>Basic.MainMenu.Edit.Scale.ZoomIn</string>
                  </property>
                  <property name="text">
-                  <string/>
+                  <string />
                  </property>
                  <property name="icon">
                   <iconset resource="obs.qrc">
@@ -521,7 +521,7 @@
              </size>
             </property>
             <property name="text">
-             <string/>
+             <string />
             </property>
            </widget>
           </item>
@@ -571,7 +571,7 @@
              </size>
             </property>
             <property name="text">
-             <string/>
+             <string />
             </property>
            </widget>
           </item>
@@ -721,14 +721,14 @@
     <property name="title">
      <string>Basic.MainMenu.File</string>
     </property>
-    <addaction name="actionShow_Recordings"/>
-    <addaction name="actionRemux"/>
-    <addaction name="separator"/>
-    <addaction name="action_Settings"/>
-    <addaction name="actionShowSettingsFolder"/>
-    <addaction name="actionShowProfileFolder"/>
-    <addaction name="separator"/>
-    <addaction name="actionE_xit"/>
+    <addaction name="actionShow_Recordings" />
+    <addaction name="actionRemux" />
+    <addaction name="separator" />
+    <addaction name="action_Settings" />
+    <addaction name="actionShowSettingsFolder" />
+    <addaction name="actionShowProfileFolder" />
+    <addaction name="separator" />
+    <addaction name="actionLogout" /><addaction name="actionE_xit" />
    </widget>
    <widget class="QMenu" name="menuBasic_MainMenu_Help">
     <property name="title">
@@ -738,34 +738,34 @@
      <property name="title">
       <string>Basic.MainMenu.Help.Logs</string>
      </property>
-     <addaction name="actionShowLogs"/>
-     <addaction name="actionUploadCurrentLog"/>
-     <addaction name="actionUploadLastLog"/>
-     <addaction name="actionViewCurrentLog"/>
+     <addaction name="actionShowLogs" />
+     <addaction name="actionUploadCurrentLog" />
+     <addaction name="actionUploadLastLog" />
+     <addaction name="actionViewCurrentLog" />
     </widget>
     <widget class="QMenu" name="menuCrashLogs">
      <property name="title">
       <string>Basic.MainMenu.Help.CrashLogs</string>
      </property>
-     <addaction name="actionShowCrashLogs"/>
-     <addaction name="actionUploadLastCrashLog"/>
+     <addaction name="actionShowCrashLogs" />
+     <addaction name="actionUploadLastCrashLog" />
     </widget>
-    <addaction name="actionHelpPortal"/>
-    <addaction name="actionWebsite"/>
-    <addaction name="actionDiscord"/>
-    <addaction name="separator"/>
-    <addaction name="menuLogFiles"/>
-    <addaction name="menuCrashLogs"/>
-    <addaction name="separator"/>
-    <addaction name="actionRepair"/>
-    <addaction name="actionCheckForUpdates"/>
-    <addaction name="actionRestartSafe"/>
-    <addaction name="actionShowMacPermissions"/>
-    <addaction name="separator"/>
-    <addaction name="actionShowWhatsNew"/>
-    <addaction name="actionReleaseNotes"/>
-    <addaction name="actionShowAbout"/>
-    <addaction name="separator"/>
+    <addaction name="actionHelpPortal" />
+    <addaction name="actionWebsite" />
+    <addaction name="actionDiscord" />
+    <addaction name="separator" />
+    <addaction name="menuLogFiles" />
+    <addaction name="menuCrashLogs" />
+    <addaction name="separator" />
+    <addaction name="actionRepair" />
+    <addaction name="actionCheckForUpdates" />
+    <addaction name="actionRestartSafe" />
+    <addaction name="actionShowMacPermissions" />
+    <addaction name="separator" />
+    <addaction name="actionShowWhatsNew" />
+    <addaction name="actionReleaseNotes" />
+    <addaction name="actionShowAbout" />
+    <addaction name="separator" />
    </widget>
    <widget class="QMenu" name="menuBasic_MainMenu_Edit">
     <property name="title">
@@ -775,45 +775,45 @@
      <property name="title">
       <string>Basic.MainMenu.Edit.Transform</string>
      </property>
-     <addaction name="actionEditTransform"/>
-     <addaction name="actionCopyTransform"/>
-     <addaction name="actionPasteTransform"/>
-     <addaction name="actionResetTransform"/>
-     <addaction name="separator"/>
-     <addaction name="actionRotate90CW"/>
-     <addaction name="actionRotate90CCW"/>
-     <addaction name="actionRotate180"/>
-     <addaction name="separator"/>
-     <addaction name="actionFlipHorizontal"/>
-     <addaction name="actionFlipVertical"/>
-     <addaction name="separator"/>
-     <addaction name="actionFitToScreen"/>
-     <addaction name="actionStretchToScreen"/>
-     <addaction name="actionCenterToScreen"/>
-     <addaction name="actionVerticalCenter"/>
-     <addaction name="actionHorizontalCenter"/>
+     <addaction name="actionEditTransform" />
+     <addaction name="actionCopyTransform" />
+     <addaction name="actionPasteTransform" />
+     <addaction name="actionResetTransform" />
+     <addaction name="separator" />
+     <addaction name="actionRotate90CW" />
+     <addaction name="actionRotate90CCW" />
+     <addaction name="actionRotate180" />
+     <addaction name="separator" />
+     <addaction name="actionFlipHorizontal" />
+     <addaction name="actionFlipVertical" />
+     <addaction name="separator" />
+     <addaction name="actionFitToScreen" />
+     <addaction name="actionStretchToScreen" />
+     <addaction name="actionCenterToScreen" />
+     <addaction name="actionVerticalCenter" />
+     <addaction name="actionHorizontalCenter" />
     </widget>
     <widget class="QMenu" name="orderMenu">
      <property name="title">
       <string>Basic.MainMenu.Edit.Order</string>
      </property>
-     <addaction name="actionMoveUp"/>
-     <addaction name="actionMoveDown"/>
-     <addaction name="separator"/>
-     <addaction name="actionMoveToTop"/>
-     <addaction name="actionMoveToBottom"/>
+     <addaction name="actionMoveUp" />
+     <addaction name="actionMoveDown" />
+     <addaction name="separator" />
+     <addaction name="actionMoveToTop" />
+     <addaction name="actionMoveToBottom" />
     </widget>
     <widget class="QMenu" name="scalingMenu">
      <property name="title">
       <string>Basic.MainMenu.Edit.Scale</string>
      </property>
-     <addaction name="actionScaleWindow"/>
-     <addaction name="actionScaleCanvas"/>
-     <addaction name="actionScaleOutput"/>
-     <addaction name="separator"/>
-     <addaction name="actionPreviewZoomIn"/>
-     <addaction name="actionPreviewZoomOut"/>
-     <addaction name="actionPreviewResetZoom"/>
+     <addaction name="actionScaleWindow" />
+     <addaction name="actionScaleCanvas" />
+     <addaction name="actionScaleOutput" />
+     <addaction name="separator" />
+     <addaction name="actionPreviewZoomIn" />
+     <addaction name="actionPreviewZoomOut" />
+     <addaction name="actionPreviewResetZoom" />
     </widget>
     <action name="actionCopySource">
      <property name="text">
@@ -853,50 +853,50 @@
       <string>Paste.Filters</string>
      </property>
     </action>
-    <addaction name="actionMainUndo"/>
-    <addaction name="actionMainRedo"/>
-    <addaction name="separator"/>
-    <addaction name="actionCopySource"/>
-    <addaction name="actionPasteRef"/>
-    <addaction name="actionPasteDup"/>
-    <addaction name="separator"/>
-    <addaction name="actionCopyFilters"/>
-    <addaction name="actionPasteFilters"/>
-    <addaction name="separator"/>
-    <addaction name="transformMenu"/>
-    <addaction name="orderMenu"/>
-    <addaction name="scalingMenu"/>
-    <addaction name="actionLockPreview"/>
-    <addaction name="separator"/>
-    <addaction name="actionAdvAudioProperties"/>
-    <addaction name="separator"/>
+    <addaction name="actionMainUndo" />
+    <addaction name="actionMainRedo" />
+    <addaction name="separator" />
+    <addaction name="actionCopySource" />
+    <addaction name="actionPasteRef" />
+    <addaction name="actionPasteDup" />
+    <addaction name="separator" />
+    <addaction name="actionCopyFilters" />
+    <addaction name="actionPasteFilters" />
+    <addaction name="separator" />
+    <addaction name="transformMenu" />
+    <addaction name="orderMenu" />
+    <addaction name="scalingMenu" />
+    <addaction name="actionLockPreview" />
+    <addaction name="separator" />
+    <addaction name="actionAdvAudioProperties" />
+    <addaction name="separator" />
    </widget>
    <widget class="QMenu" name="profileMenu">
     <property name="title">
      <string>Basic.MainMenu.Profile</string>
     </property>
-    <addaction name="actionNewProfile"/>
-    <addaction name="actionDupProfile"/>
-    <addaction name="actionRenameProfile"/>
-    <addaction name="actionRemoveProfile"/>
-    <addaction name="actionImportProfile"/>
-    <addaction name="actionExportProfile"/>
-    <addaction name="separator"/>
+    <addaction name="actionNewProfile" />
+    <addaction name="actionDupProfile" />
+    <addaction name="actionRenameProfile" />
+    <addaction name="actionRemoveProfile" />
+    <addaction name="actionImportProfile" />
+    <addaction name="actionExportProfile" />
+    <addaction name="separator" />
    </widget>
    <widget class="QMenu" name="sceneCollectionMenu">
     <property name="title">
      <string>Basic.MainMenu.SceneCollection</string>
     </property>
-    <addaction name="actionNewSceneCollection"/>
-    <addaction name="actionDupSceneCollection"/>
-    <addaction name="actionRenameSceneCollection"/>
-    <addaction name="actionRemoveSceneCollection"/>
-    <addaction name="actionImportSceneCollection"/>
-    <addaction name="actionExportSceneCollection"/>
-    <addaction name="separator"/>
-    <addaction name="actionShowMissingFiles"/>
-    <addaction name="actionRemigrateSceneCollection"/>
-    <addaction name="separator"/>
+    <addaction name="actionNewSceneCollection" />
+    <addaction name="actionDupSceneCollection" />
+    <addaction name="actionRenameSceneCollection" />
+    <addaction name="actionRemoveSceneCollection" />
+    <addaction name="actionImportSceneCollection" />
+    <addaction name="actionExportSceneCollection" />
+    <addaction name="separator" />
+    <addaction name="actionShowMissingFiles" />
+    <addaction name="actionRemigrateSceneCollection" />
+    <addaction name="separator" />
    </widget>
    <widget class="QMenu" name="viewMenu">
     <property name="title">
@@ -906,8 +906,8 @@
      <property name="title">
       <string>Basic.MainMenu.View.SceneListMode</string>
      </property>
-     <addaction name="actionSceneListMode"/>
-     <addaction name="actionSceneGridMode"/>
+     <addaction name="actionSceneListMode" />
+     <addaction name="actionSceneGridMode" />
     </widget>
     <widget class="QMenu" name="multiviewProjectorMenu">
      <property name="title">
@@ -927,49 +927,49 @@
       <string>F11</string>
      </property>
     </action>
-    <addaction name="resetUI"/>
-    <addaction name="actionFullscreenInterface"/>
-    <addaction name="separator"/>
-    <addaction name="sceneListModeMenu"/>
-    <addaction name="toggleListboxToolbars"/>
-    <addaction name="toggleContextBar"/>
-    <addaction name="toggleSourceIcons"/>
-    <addaction name="toggleStatusBar"/>
-    <addaction name="separator"/>
-    <addaction name="stats"/>
-    <addaction name="separator"/>
-    <addaction name="multiviewProjectorMenu"/>
-    <addaction name="separator"/>
-    <addaction name="actionAlwaysOnTop"/>
+    <addaction name="resetUI" />
+    <addaction name="actionFullscreenInterface" />
+    <addaction name="separator" />
+    <addaction name="sceneListModeMenu" />
+    <addaction name="toggleListboxToolbars" />
+    <addaction name="toggleContextBar" />
+    <addaction name="toggleSourceIcons" />
+    <addaction name="toggleStatusBar" />
+    <addaction name="separator" />
+    <addaction name="stats" />
+    <addaction name="separator" />
+    <addaction name="multiviewProjectorMenu" />
+    <addaction name="separator" />
+    <addaction name="actionAlwaysOnTop" />
    </widget>
    <widget class="QMenu" name="menuTools">
     <property name="title">
      <string>Basic.MainMenu.Tools</string>
     </property>
-    <addaction name="autoConfigure"/>
-    <addaction name="idianPlayground"/>
-    <addaction name="actionOpenPluginManager"/>
-    <addaction name="separator"/>
+    <addaction name="autoConfigure" />
+    <addaction name="idianPlayground" />
+    <addaction name="actionOpenPluginManager" />
+    <addaction name="separator" />
    </widget>
    <widget class="QMenu" name="menuDocks">
     <property name="title">
      <string>Basic.MainMenu.Docks</string>
     </property>
-    <addaction name="lockDocks"/>
-    <addaction name="sideDocks"/>
-    <addaction name="resetDocks"/>
-    <addaction name="separator"/>
+    <addaction name="lockDocks" />
+    <addaction name="sideDocks" />
+    <addaction name="resetDocks" />
+    <addaction name="separator" />
    </widget>
-   <addaction name="menu_File"/>
-   <addaction name="menuBasic_MainMenu_Edit"/>
-   <addaction name="viewMenu"/>
-   <addaction name="menuDocks"/>
-   <addaction name="profileMenu"/>
-   <addaction name="sceneCollectionMenu"/>
-   <addaction name="menuTools"/>
-   <addaction name="menuBasic_MainMenu_Help"/>
+   <addaction name="menu_File" />
+   <addaction name="menuBasic_MainMenu_Edit" />
+   <addaction name="viewMenu" />
+   <addaction name="menuDocks" />
+   <addaction name="profileMenu" />
+   <addaction name="sceneCollectionMenu" />
+   <addaction name="menuTools" />
+   <addaction name="menuBasic_MainMenu_Help" />
   </widget>
-  <widget class="OBSBasicStatusBar" name="statusbar"/>
+  <widget class="OBSBasicStatusBar" name="statusbar" />
   <widget class="OBSDock" name="scenesDock">
    <property name="features">
     <set>QDockWidget::DockWidgetClosable|QDockWidget::DockWidgetFloatable|QDockWidget::DockWidgetMovable</set>
@@ -1010,11 +1010,295 @@
          <number>0</number>
         </property>
         <property name="rightMargin">
-         <number>0</number>
-        </property>
-        <property name="bottomMargin">
-         <number>0</number>
-        </property>
+      <number>0</number>
+     </property>
+         <item>
+          <widget class="QWidget" name="customActionsContainer">
+           <property name="sizePolicy">
+            <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
+             <horstretch>0</horstretch>
+             <verstretch>0</verstretch>
+            </sizepolicy>
+           </property>
+           <layout class="QHBoxLayout" name="horizontalLayout_customActions">
+            <property name="spacing">
+             <number>10</number>
+            </property>
+            <property name="topMargin">
+             <number>5</number>
+            </property>
+            <property name="bottomMargin">
+             <number>5</number>
+            </property>
+            <item>
+             <widget class="QPushButton" name="actionCustomAddSource">
+              <property name="toolTip">
+               <string>Add Source</string>
+              </property>
+              <property name="text"><string /></property>
+              <property name="fixedSize">
+               <size>
+                <width>37</width>
+                <height>37</height>
+               </size>
+              </property>
+              <property name="iconSize">
+               <size>
+                <width>18</width>
+                <height>18</height>
+               </size>
+              </property>
+              <property name="icon">
+               <iconset resource="obs.qrc">
+                <normaloff>:/res/images/plus.svg</normaloff>
+               </iconset>
+              </property>
+              <property name="styleSheet">
+               <string>
+               QPushButton {
+    background-color: transparent;
+    border-radius: 14px;
+    border: none;
+    padding: 0px;
+}
+QPushButton:hover {
+    background-color: rgba(255, 255, 255, 30);
+}</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <spacer name="horizontalSpacer_customActions_left">
+              <property name="orientation">
+               <enum>Qt::Horizontal</enum>
+              </property>
+             </spacer>
+            </item>
+            <item>
+               <widget class="QPushButton" name="actionCustomRecord">
+                <property name="toolTip">
+                 <string>Record Video</string>
+                </property>
+                <property name="text"><string /></property>
+                <property name="fixedSize">
+                 <size>
+                  <width>37</width>
+                  <height>37</height>
+                 </size>
+                </property>
+                <property name="iconSize">
+                 <size>
+                  <width>26</width>
+                  <height>26</height>
+                 </size>
+                </property>
+                <property name="icon">
+                 <iconset resource="obs.qrc">
+                  <normaloff>:/res/images/custom_video.svg</normaloff>
+                 </iconset>
+                </property>
+                <property name="checkable">
+                 <bool>true</bool>
+                </property>
+                <property name="styleSheet">
+                 <string>
+QPushButton {
+    background-color: transparent;
+    border-radius: 14px;
+    border: none;
+    padding: 0px;
+}
+QPushButton:hover {
+    background-color: rgba(255, 255, 255, 20);
+}
+QPushButton:checked {
+    background-color: rgba(255, 0, 0, 100);
+}
+                 </string>
+                </property>
+                <property name="cursor">
+                 <cursorShape>PointingHandCursor</cursorShape>
+                </property>
+               </widget>
+            </item>
+            <item>
+               <widget class="QPushButton" name="actionCustomStream">
+                <property name="toolTip">
+                 <string>Broadcast</string>
+                </property>
+                <property name="text"><string /></property>
+                <property name="fixedSize">
+                 <size>
+                  <width>37</width>
+                  <height>37</height>
+                 </size>
+                </property>
+                <property name="iconSize">
+                 <size>
+                  <width>26</width>
+                  <height>26</height>
+                 </size>
+                </property>
+                <property name="icon">
+                 <iconset resource="obs.qrc">
+                  <normaloff>:/res/images/custom_stream.svg</normaloff>
+                 </iconset>
+                </property>
+                <property name="styleSheet">
+                 <string>
+QPushButton {
+    background-color: #0698e0;
+    border-radius: 17px;
+    border: none;
+    padding: 0px;
+    min-width: 34px;
+    min-height: 34px;
+    max-width: 34px;
+    max-height: 34px;
+}
+QPushButton:hover {
+    background-color: #069ef0;
+}
+</string>
+                </property>
+                <property name="cursor">
+                 <cursorShape>PointingHandCursor</cursorShape>
+                </property>
+               </widget>
+            </item>
+            <item>
+               <widget class="QPushButton" name="actionCustomScreenshot">
+                <property name="toolTip">
+                 <string>Take Snapshot</string>
+                </property>
+                <property name="text"><string /></property>
+                <property name="fixedSize">
+                 <size>
+                  <width>37</width>
+                  <height>37</height>
+                 </size>
+                </property>
+                <property name="iconSize">
+                 <size>
+                  <width>26</width>
+                  <height>26</height>
+                 </size>
+                </property>
+                <property name="icon">
+                 <iconset resource="obs.qrc">
+                  <normaloff>:/res/images/custom_camera.svg</normaloff>
+                 </iconset>
+                </property>
+                <property name="styleSheet">
+                 <string>
+QPushButton {
+    background-color: transparent;
+    border-radius: 14px;
+    border: none;
+    padding: 0px;
+}
+QPushButton:hover {
+    background-color: rgba(255, 255, 255, 20);
+}
+                 </string>
+                </property>
+                <property name="cursor">
+                 <cursorShape>PointingHandCursor</cursorShape>
+                </property>
+               </widget>
+            </item>
+            <item>
+             <spacer name="horizontalSpacer_customActions_right">
+              <property name="orientation">
+               <enum>Qt::Horizontal</enum>
+              </property>
+             </spacer>
+            </item>
+            <item>
+               <widget class="QPushButton" name="actionCustomStudioMode">
+                <property name="toolTip">
+                 <string>Studio Mode</string>
+                </property>
+                <property name="text"><string /></property>
+                <property name="fixedSize">
+                 <size>
+                  <width>37</width>
+                  <height>37</height>
+                 </size>
+                </property>
+                <property name="iconSize">
+                 <size>
+                  <width>26</width>
+                  <height>26</height>
+                 </size>
+                </property>
+                <property name="icon">
+                 <iconset resource="obs.qrc">
+                  <normaloff>:/res/images/custom_studiomode.svg</normaloff>
+                 </iconset>
+                </property>
+                <property name="styleSheet">
+                 <string>
+QPushButton {
+    background-color: transparent;
+    border-radius: 14px;
+    border: none;
+    padding: 0px;
+}
+QPushButton:hover {
+    background-color: rgba(255, 255, 255, 20);
+}
+                 </string>
+                </property>
+                <property name="cursor">
+                 <cursorShape>PointingHandCursor</cursorShape>
+                </property>
+               </widget>
+            </item>
+            <item>
+               <widget class="QPushButton" name="actionCustomSettings">
+                <property name="toolTip">
+                 <string>Settings</string>
+                </property>
+                <property name="text"><string /></property>
+                <property name="fixedSize">
+                 <size>
+                  <width>37</width>
+                  <height>37</height>
+                 </size>
+                </property>
+                <property name="iconSize">
+                 <size>
+                  <width>26</width>
+                  <height>26</height>
+                 </size>
+                </property>
+                <property name="icon">
+                 <iconset resource="obs.qrc">
+                  <normaloff>:/res/images/custom_settings.svg</normaloff>
+                 </iconset>
+                </property>
+                <property name="styleSheet">
+                 <string>
+QPushButton {
+    background-color: transparent;
+    border-radius: 14px;
+    border: none;
+    padding: 0px;
+}
+QPushButton:hover {
+    background-color: rgba(255, 255, 255, 20);
+}
+                 </string>
+                </property>
+                <property name="cursor">
+                 <cursorShape>PointingHandCursor</cursorShape>
+                </property>
+               </widget>
+            </item>
+           </layout>
+          </widget>
+         </item>
         <item>
          <widget class="SceneTree" name="scenes">
           <property name="sizePolicy">
@@ -1044,37 +1328,11 @@
           <property name="defaultDropAction">
            <enum>Qt::TargetMoveAction</enum>
           </property>
-          <!-- Spacing must be 0 due to QTBUG-106395 -->
+          
           <property name="spacing">
            <number>0</number>
           </property>
-          <addaction name="actionRemoveScene"/>
-         </widget>
-        </item>
-        <item>
-         <widget class="QToolBar" name="scenesToolbar">
-          <property name="sizePolicy">
-           <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
-            <horstretch>0</horstretch>
-            <verstretch>0</verstretch>
-           </sizepolicy>
-          </property>
-          <property name="iconSize">
-           <size>
-            <width>16</width>
-            <height>16</height>
-           </size>
-          </property>
-          <property name="floatable">
-           <bool>false</bool>
-          </property>
-          <addaction name="actionAddScene"/>
-          <addaction name="actionRemoveScene"/>
-          <addaction name="separator"/>
-          <addaction name="actionSceneFilters"/>
-          <addaction name="separator"/>
-          <addaction name="actionSceneUp"/>
-          <addaction name="actionSceneDown"/>
+          <addaction name="actionRemoveScene" />
          </widget>
         </item>
         <item>
@@ -1093,7 +1351,31 @@
           </property>
          </spacer>
         </item>
-       </layout>
+       <item><widget class="QToolBar" name="scenesToolbar">
+          <property name="sizePolicy">
+           <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
+            <horstretch>0</horstretch>
+            <verstretch>0</verstretch>
+           </sizepolicy>
+          </property>
+          <property name="iconSize">
+           <size>
+            <width>16</width>
+            <height>16</height>
+           </size>
+          </property>
+          <property name="floatable">
+           <bool>false</bool>
+          </property>
+          <addaction name="actionAddScene" />
+          <addaction name="actionRemoveScene" />
+          <addaction name="separator" />
+          <addaction name="actionSceneFilters" />
+          <addaction name="separator" />
+          <addaction name="actionSceneUp" />
+          <addaction name="actionSceneDown" />
+         </widget>
+        </item></layout>
       </widget>
      </item>
     </layout>
@@ -1173,11 +1455,11 @@
           <property name="selectionMode">
            <enum>QAbstractItemView::ExtendedSelection</enum>
           </property>
-          <!-- Spacing must be 0 due to QTBUG-106395 -->
+          
           <property name="spacing">
            <number>0</number>
           </property>
-          <addaction name="actionRemoveSource"/>
+          <addaction name="actionRemoveSource" />
          </widget>
         </item>
         <item>
@@ -1197,13 +1479,13 @@
           <property name="floatable">
            <bool>false</bool>
           </property>
-          <addaction name="actionAddSource"/>
-          <addaction name="actionRemoveSource"/>
-          <addaction name="separator"/>
-          <addaction name="actionSourceProperties"/>
-          <addaction name="separator"/>
-          <addaction name="actionSourceUp"/>
-          <addaction name="actionSourceDown"/>
+          <addaction name="actionAddSource" />
+          <addaction name="actionRemoveSource" />
+          <addaction name="separator" />
+          <addaction name="actionSourceProperties" />
+          <addaction name="separator" />
+          <addaction name="actionSourceUp" />
+          <addaction name="actionSourceDown" />
          </widget>
         </item>
         <item>
@@ -1400,7 +1682,7 @@
              <string>Basic.AddTransition</string>
             </property>
             <property name="text">
-             <string notr="true"/>
+             <string notr="true" />
             </property>
             <property name="icon">
              <iconset resource="obs.qrc">
@@ -1429,7 +1711,7 @@
              <string>Basic.RemoveTransition</string>
             </property>
             <property name="text">
-             <string notr="true"/>
+             <string notr="true" />
             </property>
             <property name="icon">
              <iconset resource="obs.qrc">
@@ -1458,7 +1740,7 @@
              <string>Basic.TransitionProperties</string>
             </property>
             <property name="text">
-             <string notr="true"/>
+             <string notr="true" />
             </property>
             <property name="icon">
              <iconset resource="obs.qrc">
@@ -2230,6 +2512,16 @@
     <string>Basic.MainMenu.Edit.Scale.ResetZoom</string>
    </property>
   </action>
+  <action name="actionLogout">
+   <property name="text">
+    <string>Logout</string>
+   </property>
+  </action>
+  <action name="actionPro">
+   <property name="text">
+    <string>Pro</string>
+   </property>
+  </action>
  </widget>
  <customwidgets>
   <customwidget>
@@ -2271,7 +2563,7 @@
   </customwidget>
  </customwidgets>
  <resources>
-  <include location="obs.qrc"/>
+  <include location="obs.qrc" />
  </resources>
  <connections>
   <connection>

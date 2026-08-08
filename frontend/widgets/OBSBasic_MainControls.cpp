@@ -97,6 +97,47 @@ void OBSBasic::CreatePropertiesWindow(obs_source_t *source)
 	properties->setAttribute(Qt::WA_DeleteOnClose, true);
 }
 
+void OBSBasic::CreatePropertiesDock(obs_source_t *source, const char *dockType)
+{
+	if (!propertiesDock) {
+		propertiesDock = new OBSDock();
+		propertiesDock->setObjectName("propertiesDock");
+		propertiesDock->setFeatures(QDockWidget::DockWidgetMovable | QDockWidget::DockWidgetFloatable);
+		addDockWidget(Qt::LeftDockWidgetArea, propertiesDock);
+	}
+	propertiesDock->setWindowTitle(QTStr("Basic.PropertiesWindow").arg(QT_UTF8(obs_source_get_name(source))));
+
+	if (properties && properties->GetSource() == source) {
+		propertiesDock->show();
+		propertiesDock->raise();
+		return;
+	}
+
+	bool closed = true;
+	if (properties)
+		closed = properties->close();
+	if (!closed)
+		return;
+
+	properties = new OBSBasicProperties(this, source);
+	properties->setWindowFlags(Qt::Widget);
+	
+	QDialogButtonBox *box = properties->findChild<QDialogButtonBox*>("buttonBox");
+	if (box) box->hide();
+	
+	OBSQTDisplay *preview = properties->findChild<OBSQTDisplay*>("preview");
+	if (preview) preview->hide();
+	
+	propertiesDock->setWidget(properties);
+	propertiesDock->setProperty("sourceType", dockType);
+
+	properties->Init();
+	properties->setAttribute(Qt::WA_DeleteOnClose, true);
+	
+	propertiesDock->show();
+	propertiesDock->raise();
+}
+
 void OBSBasic::CreateFiltersWindow(obs_source_t *source)
 {
 	bool closed = true;

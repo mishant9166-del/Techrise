@@ -38,6 +38,8 @@ public:
 
 	OBSSource newSource;
 
+	void setInitialType(const QString &typeName);
+
 	static void sourcePaste(SourceCopyInfo &info, bool duplicate);
 
 protected:

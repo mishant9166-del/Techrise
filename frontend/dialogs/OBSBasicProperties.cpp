@@ -25,6 +25,7 @@
 #include <vertical-scroll-area.hpp>
 
 #include <QPushButton>
+#include <QTimer>
 
 #ifdef _WIN32
 #ifndef WIN32_LEAN_AND_MEAN
@@ -36,6 +37,54 @@
 #include "moc_OBSBasicProperties.cpp"
 
 using namespace std;
+
+#include <QPainter>
+#include <QMouseEvent>
+#include <functional>
+
+class FilterToggleSwitch : public QWidget {
+public:
+    explicit FilterToggleSwitch(QWidget *parent = nullptr) : QWidget(parent), m_checked(false) {
+        setFixedSize(40, 20);
+        setCursor(Qt::PointingHandCursor);
+    }
+    bool isChecked() const { return m_checked; }
+    void setChecked(bool checked) {
+        if (m_checked != checked) {
+            m_checked = checked;
+            if (onToggled) onToggled(m_checked);
+            update();
+        }
+    }
+    std::function<void(bool)> onToggled;
+protected:
+    void mousePressEvent(QMouseEvent *event) override {
+        event->accept();
+    }
+    void mouseReleaseEvent(QMouseEvent *event) override {
+        event->accept();
+        setChecked(!m_checked);
+    }
+    void paintEvent(QPaintEvent *) override {
+        QPainter p(this);
+        p.setRenderHint(QPainter::Antialiasing);
+        if (m_checked) {
+            p.setBrush(QColor("#00a8ff"));
+            p.setPen(Qt::NoPen);
+            p.drawRoundedRect(0, 0, 40, 20, 10, 10);
+            p.setBrush(Qt::white);
+            p.drawEllipse(22, 2, 16, 16);
+        } else {
+            p.setBrush(underMouse() ? QColor("#d0d0d0") : QColor("#dcdcdc"));
+            p.setPen(Qt::NoPen);
+            p.drawRoundedRect(0, 0, 40, 20, 10, 10);
+            p.setBrush(Qt::white);
+            p.drawEllipse(2, 2, 16, 16);
+        }
+    }
+private:
+    bool m_checked;
+};
 
 static void CreateTransitionScene(OBSSource scene, const char *text, uint32_t color);
 
@@ -72,6 +121,61 @@ OBSBasicProperties::OBSBasicProperties(QWidget *parent, OBSSource source_)
 				     (PropertiesUpdateCallback) nullptr, // No special handling required for undo/redo
 				     (PropertiesVisualUpdateCb)obs_source_update);
 	view->setMinimumHeight(150);
+	
+	const char *id = obs_source_get_unversioned_id(source);
+	if (id && (strcmp(id, "text_gdiplus") == 0 || strcmp(id, "text_ft2_source") == 0)) {
+		QPushButton *addTextButton = new QPushButton(QTStr("Add Text"));
+		addTextButton->setIcon(QIcon(":/res/images/plus.svg"));
+		addTextButton->setMinimumHeight(40);
+		addTextButton->setStyleSheet("QPushButton { font-size: 14px; font-weight: bold; }");
+		ui->propertiesLayout->addWidget(addTextButton);
+		OBSBasic *mainWnd = main;
+		connect(addTextButton, &QPushButton::clicked, this, [this, mainWnd]() {
+			OBSScene scene = mainWnd->GetCurrentScene();
+			if (!scene) return;
+			std::string newName = "Text (GDI+)";
+			int i = 2;
+			OBSSourceAutoRelease existingSource;
+			while ((existingSource = obs_get_source_by_name(newName.c_str()))) {
+				newName = "Text (GDI+) " + std::to_string(i++);
+			}
+#ifdef _WIN32
+			obs_source_t *newSource = obs_source_create("text_gdiplus", newName.c_str(), nullptr, nullptr);
+#else
+			obs_source_t *newSource = obs_source_create("text_ft2_source", newName.c_str(), nullptr, nullptr);
+#endif
+			if (newSource) {
+				obs_scene_add(scene, newSource);
+				QTimer::singleShot(0, mainWnd, [mainWnd, newSource]() {
+					mainWnd->CreatePropertiesDock(newSource, "text");
+					obs_source_release(newSource);
+				});
+			}
+		});
+	}
+
+	if (type == OBS_SOURCE_TYPE_FILTER) {
+		QHBoxLayout *filterLayout = new QHBoxLayout();
+		filterLayout->setContentsMargins(5, 5, 5, 10);
+		
+		QLabel *enableLabel = new QLabel("Enable Filter");
+		enableLabel->setStyleSheet("font-size: 14px; font-weight: bold; color: palette(windowText);");
+		
+		FilterToggleSwitch *enableToggle = new FilterToggleSwitch();
+		enableToggle->setChecked(obs_source_enabled(source));
+		
+		enableToggle->onToggled = [this](bool checked) {
+			if (this->source) {
+				obs_source_set_enabled(this->source, checked);
+			}
+		};
+		
+		filterLayout->addWidget(enableLabel);
+		filterLayout->addStretch();
+		filterLayout->addWidget(enableToggle);
+		
+		ui->propertiesLayout->addLayout(filterLayout);
+	}
 
 	ui->propertiesLayout->addWidget(view);
 
@@ -417,7 +521,14 @@ void OBSBasicProperties::Cleanup()
 
 void OBSBasicProperties::reject()
 {
-	if (!acceptClicked && (CheckSettings() != 0)) {
+	QDialogButtonBox *box = findChild<QDialogButtonBox *>("buttonBox");
+	bool isDockWidget = (box && box->isHidden());
+
+	if (isDockWidget) {
+		acceptClicked = true;
+		if (view->DeferUpdate())
+			view->UpdateSettings();
+	} else if (!acceptClicked && (CheckSettings() != 0)) {
 		if (!ConfirmQuit()) {
 			return;
 		}

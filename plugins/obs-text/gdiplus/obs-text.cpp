@@ -67,6 +67,8 @@ using namespace Gdiplus;
 #define S_EXTENTS_CY                    "extents_cy"
 #define S_TRANSFORM                     "transform"
 #define S_ANTIALIASING                  "antialiasing"
+#define S_SCROLL_TEXT                   "scroll_text"
+#define S_SCROLL_SPEED                  "scroll_speed"
 
 #define S_ALIGN_LEFT                    "left"
 #define S_ALIGN_CENTER                  "center"
@@ -109,6 +111,8 @@ using namespace Gdiplus;
 #define T_EXTENTS_CY                    T_("Height")
 #define T_TRANSFORM                     T_("Transform")
 #define T_ANTIALIASING                  T_("Antialiasing")
+#define T_SCROLL_TEXT                   T_("ScrollText")
+#define T_SCROLL_SPEED                  T_("ScrollSpeed")
 
 #define T_FILTER_TEXT_FILES             T_("Filter.TextFiles")
 #define T_FILTER_ALL_FILES              T_("Filter.AllFiles")
@@ -259,6 +263,10 @@ struct TextSource {
 
 	bool chatlog_mode = false;
 	int chatlog_lines = 6;
+
+	bool scroll_text = false;
+	int scroll_speed = 0;
+	float scroll_offset = 0.0f;
 
 	/* --------------------------- */
 
@@ -719,6 +727,8 @@ inline void TextSource::Update(obs_data_t *s)
 	const char *new_file = obs_data_get_string(s, S_FILE);
 	bool new_chat_mode = obs_data_get_bool(s, S_CHATLOG_MODE);
 	int new_chat_lines = (int)obs_data_get_int(s, S_CHATLOG_LINES);
+	scroll_text = obs_data_get_bool(s, S_SCROLL_TEXT);
+	scroll_speed = (int)obs_data_get_int(s, S_SCROLL_SPEED);
 	bool new_extents = obs_data_get_bool(s, S_EXTENTS);
 	bool new_extents_wrap = obs_data_get_bool(s, S_EXTENTS_WRAP);
 	uint32_t n_extents_cx = obs_data_get_uint32(s, S_EXTENTS_CX);
@@ -832,6 +842,14 @@ inline void TextSource::Update(obs_data_t *s)
 
 inline void TextSource::Tick(float seconds)
 {
+	if (scroll_text && scroll_speed != 0 && cx > 0) {
+		scroll_offset += (float)scroll_speed * seconds;
+		scroll_offset = fmod(scroll_offset, (float)cx);
+		if (scroll_offset < 0.0f) {
+			scroll_offset += (float)cx;
+		}
+	}
+
 	if (!read_from_file)
 		return;
 
@@ -870,7 +888,22 @@ inline void TextSource::Render()
 	gs_technique_begin_pass(tech, 0);
 
 	gs_effect_set_texture_srgb(gs_effect_get_param_by_name(effect, "image"), tex);
-	gs_draw_sprite(tex, 0, cx, cy);
+	
+	if (scroll_text && scroll_speed != 0 && cx > 0 && cy > 0) {
+		uint32_t offset = (uint32_t)scroll_offset;
+		if (offset > cx) offset = cx;
+		
+		gs_draw_sprite_subregion(tex, 0, offset, 0, cx - offset, cy);
+		
+		if (offset > 0) {
+			gs_matrix_push();
+			gs_matrix_translate3f((float)(cx - offset), 0.0f, 0.0f);
+			gs_draw_sprite_subregion(tex, 0, 0, 0, offset, cy);
+			gs_matrix_pop();
+		}
+	} else {
+		gs_draw_sprite(tex, 0, cx, cy);
+	}
 
 	gs_technique_end_pass(tech);
 	gs_technique_end(tech);
@@ -1002,6 +1035,13 @@ static obs_properties_t *get_properties(void *data)
 	p = obs_properties_add_int_slider(props, S_BKOPACITY, T_BKOPACITY, 0, 100, 1);
 	obs_property_int_set_suffix(p, "%");
 
+	p = obs_properties_add_bool(props, S_EXTENTS, T_EXTENTS);
+	obs_property_set_modified_callback(p, extents_modified);
+
+	obs_properties_add_int(props, S_EXTENTS_CX, T_EXTENTS_CX, 32, 8000, 1);
+	obs_properties_add_int(props, S_EXTENTS_CY, T_EXTENTS_CY, 32, 8000, 1);
+	obs_properties_add_bool(props, S_EXTENTS_WRAP, T_EXTENTS_WRAP);
+
 	p = obs_properties_add_list(props, S_ALIGN, T_ALIGN, OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_STRING);
 	obs_property_list_add_string(p, T_ALIGN_LEFT, S_ALIGN_LEFT);
 	obs_property_list_add_string(p, T_ALIGN_CENTER, S_ALIGN_CENTER);
@@ -1025,12 +1065,8 @@ static obs_properties_t *get_properties(void *data)
 
 	obs_properties_add_int(props, S_CHATLOG_LINES, T_CHATLOG_LINES, 1, 1000, 1);
 
-	p = obs_properties_add_bool(props, S_EXTENTS, T_EXTENTS);
-	obs_property_set_modified_callback(p, extents_modified);
-
-	obs_properties_add_int(props, S_EXTENTS_CX, T_EXTENTS_CX, 32, 8000, 1);
-	obs_properties_add_int(props, S_EXTENTS_CY, T_EXTENTS_CY, 32, 8000, 1);
-	obs_properties_add_bool(props, S_EXTENTS_WRAP, T_EXTENTS_WRAP);
+	obs_properties_add_bool(props, S_SCROLL_TEXT, T_SCROLL_TEXT);
+	obs_properties_add_int_slider(props, S_SCROLL_SPEED, T_SCROLL_SPEED, -1000, 1000, 1);
 
 	return props;
 }
@@ -1056,10 +1092,12 @@ static void defaults(obs_data_t *settings, int ver)
 	obs_data_set_default_int(settings, S_OUTLINE_OPACITY, 100);
 	obs_data_set_default_int(settings, S_CHATLOG_LINES, 6);
 	obs_data_set_default_bool(settings, S_EXTENTS_WRAP, true);
-	obs_data_set_default_int(settings, S_EXTENTS_CX, 100);
-	obs_data_set_default_int(settings, S_EXTENTS_CY, 100);
+	obs_data_set_default_int(settings, S_EXTENTS_CX, 1920);
+	obs_data_set_default_int(settings, S_EXTENTS_CY, 1080);
 	obs_data_set_default_int(settings, S_TRANSFORM, S_TRANSFORM_NONE);
 	obs_data_set_default_bool(settings, S_ANTIALIASING, true);
+	obs_data_set_default_bool(settings, S_SCROLL_TEXT, false);
+	obs_data_set_default_int(settings, S_SCROLL_SPEED, 50);
 
 	obs_data_release(font_obj);
 };

@@ -43,4 +43,9 @@ target_sources(
     dialogs/OBSRemux.hpp
     dialogs/OBSWhatsNew.cpp
     dialogs/OBSWhatsNew.hpp
+    dialogs/CustomStreamDialog.cpp
+    dialogs/CustomStreamDialog.hpp
+    dialogs/MultiStreamAuth.cpp
+    dialogs/MultiStreamAuth.hpp
+    forms/CustomStreamDialog.ui
 )

@@ -407,6 +407,7 @@ static void ffmpeg_source_update(void *data, obs_data_t *settings)
 	bool is_linear_alpha;
 	int speed_percent;
 	bool is_looping;
+	char *real_url_alloc = NULL;
 
 	bfree(s->input_format);
 
@@ -420,6 +421,41 @@ static void ffmpeg_source_update(void *data, obs_data_t *settings)
 	} else {
 		should_restart_media = true;
 		input = obs_data_get_string(settings, "input");
+		
+		if (input && strncmp(input, "rtsp://", 7) == 0) {
+			const char *pass_start = strchr(input + 7, ':');
+			if (pass_start) {
+				pass_start++;
+				const char *pass_end = strchr(pass_start, '@');
+				if (pass_end) {
+					size_t pass_len = pass_end - pass_start;
+					if (pass_len == 6 && strncmp(pass_start, "******", 6) == 0) {
+						const char *saved_pass = obs_data_get_string(settings, "rtsp_password");
+						if (saved_pass && *saved_pass) {
+							struct dstr real_url = {0};
+							dstr_ncopy(&real_url, input, pass_start - input);
+							dstr_cat(&real_url, saved_pass);
+							dstr_cat(&real_url, pass_end);
+							real_url_alloc = real_url.array;
+						}
+					} else {
+						char new_pass[256] = {0};
+						strncpy(new_pass, pass_start, pass_len < 255 ? pass_len : 255);
+						obs_data_set_string(settings, "rtsp_password", new_pass);
+						real_url_alloc = bstrdup(input);
+						
+						struct dstr masked_url = {0};
+						dstr_ncopy(&masked_url, input, pass_start - input);
+						dstr_cat(&masked_url, "******");
+						dstr_cat(&masked_url, pass_end);
+						obs_data_set_string(settings, "input", masked_url.array);
+						input = obs_data_get_string(settings, "input");
+						dstr_free(&masked_url);
+					}
+				}
+			}
+		}
+		
 		input_format = obs_data_get_string(settings, "input_format");
 		s->reconnect_delay_sec = (int)obs_data_get_int(settings, "reconnect_delay_sec");
 		s->reconnect_delay_sec = s->reconnect_delay_sec == 0 ? 10 : s->reconnect_delay_sec;
@@ -452,7 +488,7 @@ static void ffmpeg_source_update(void *data, obs_data_t *settings)
 
 	s->is_looping = is_looping;
 	s->close_when_inactive = obs_data_get_bool(settings, "close_when_inactive");
-	s->input = input ? bstrdup(input) : NULL;
+	s->input = real_url_alloc ? real_url_alloc : (input ? bstrdup(input) : NULL);
 	s->input_format = input_format ? bstrdup(input_format) : NULL;
 	s->is_hw_decoding = is_hw_decoding;
 	s->full_decode = obs_data_get_bool(settings, "full_decode");

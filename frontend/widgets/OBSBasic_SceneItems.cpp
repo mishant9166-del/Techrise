@@ -18,8 +18,12 @@
 ******************************************************************************/
 
 #include "OBSBasic.hpp"
+#include <obs-frontend-api.h>
 #include "ColorSelect.hpp"
 #include "OBSProjector.hpp"
+#include <QJsonDocument>
+#include <QJsonArray>
+#include <QJsonObject>
 
 #include <components/VolumeControl.hpp>
 #include <dialogs/NameDialog.hpp>
@@ -585,8 +589,209 @@ void OBSBasic::CreateSourcePopupMenu(int idx, bool preview)
 	}
 
 	// Add new source
-	QAction *addSource = popup.addAction(QTStr("AddSource"), this, &OBSBasic::AddSourceDialog);
-	popup.addAction(addSource);
+	QMenu *addSourceMenu = new QMenu(QTStr("AddSource"), this);
+	
+	auto addCustomSource = [&](const QString &name, const char *unversioned_id) {
+		QAction *action = new QAction(name, this);
+		QIcon icon = GetSourceIcon(unversioned_id);
+		if (icon.isNull()) {
+			icon = GetSourceIcon("image_source"); // fallback icon
+		}
+		action->setIcon(icon);
+		connect(action, &QAction::triggered, this, [this, name]() {
+			AddSourceDialog(name);
+		});
+		addSourceMenu->addAction(action);
+	};
+
+	// --- CUSTOM SOURCES ---
+	addCustomSource("Images & Videos", "image_source");
+	addCustomSource("PowerPoint", "window_capture");
+	addCustomSource("PDF", "browser_source");
+	// addCustomSource("NDI\xc2\xae Input", "ndi_source");
+
+	// Video Capture (Replaces Mobile Device) with dynamic camera list
+	QMenu *videoCaptureMenu = new QMenu("Video Capture", this);
+	QIcon vcIcon = GetSourceIcon("dshow_input");
+	if (vcIcon.isNull()) vcIcon = GetSourceIcon("image_source");
+	videoCaptureMenu->setIcon(vcIcon);
+
+	connect(videoCaptureMenu, &QMenu::aboutToShow, this, [this, videoCaptureMenu]() {
+		videoCaptureMenu->clear();
+		obs_properties_t *dshow_props = obs_get_source_properties("dshow_input");
+		if (dshow_props) {
+			obs_property_t *p = obs_properties_get(dshow_props, "video_device_id");
+			if (p && obs_property_get_type(p) == OBS_PROPERTY_LIST) {
+				size_t count = obs_property_list_item_count(p);
+				for (size_t i = 0; i < count; i++) {
+					const char *dev_name = obs_property_list_item_name(p, i);
+					const char *dev_val = obs_property_list_item_string(p, i);
+					if (!dev_name || !dev_val || dev_val[0] == '\0') continue;
+
+					QString qName = QString::fromUtf8(dev_name);
+					QString qVal = QString::fromUtf8(dev_val);
+					
+					QAction *action = new QAction(qName, videoCaptureMenu);
+					connect(action, &QAction::triggered, this, [this, qName, qVal]() {
+						OBSScene scene = GetCurrentScene();
+						if (!scene) return;
+						
+						std::string newName = qName.toStdString();
+						int idx = 2;
+						while (obs_get_source_by_name(newName.c_str())) {
+							newName = qName.toStdString() + " " + std::to_string(idx++);
+						}
+
+						OBSDataAutoRelease settings = obs_data_create();
+						obs_data_set_string(settings, "video_device_id", qVal.toUtf8().constData());
+						
+						OBSSourceAutoRelease source = obs_source_create("dshow_input", newName.c_str(), settings, nullptr);
+						if (source) {
+							obs_scene_add(scene, source);
+						}
+					});
+					videoCaptureMenu->addAction(action);
+				}
+			}
+			obs_properties_destroy(dshow_props);
+		}
+		
+		if (videoCaptureMenu->isEmpty()) {
+			QAction *emptyAction = new QAction("No cameras found", videoCaptureMenu);
+			emptyAction->setEnabled(false);
+			videoCaptureMenu->addAction(emptyAction);
+		}
+	});
+	
+	addSourceMenu->addMenu(videoCaptureMenu);
+	
+	QMenu *ipCamerasMenu = new QMenu("IP Cameras", this);
+	QIcon ipCamIcon = GetSourceIcon("dshow_input");
+	if (ipCamIcon.isNull()) ipCamIcon = GetSourceIcon("image_source");
+	ipCamerasMenu->setIcon(ipCamIcon);
+
+	QAction *addNewIpCamAction = new QAction("+ Add new", this);
+	connect(addNewIpCamAction, &QAction::triggered, this, [this]() {
+		AddSourceDialog("IP Cameras");
+	});
+	ipCamerasMenu->addAction(addNewIpCamAction);
+	ipCamerasMenu->addSeparator();
+
+	config_t *config = OBSBasic::Get()->Config();
+	if (config) {
+		const char *jsonStr = config_get_string(config, "IPCameras", "Cameras");
+		if (jsonStr && *jsonStr) {
+			QJsonDocument doc = QJsonDocument::fromJson(QByteArray(jsonStr));
+			if (doc.isArray()) {
+				QJsonArray arr = doc.array();
+				for (int i = 0; i < arr.size(); ++i) {
+					QJsonObject obj = arr[i].toObject();
+					QString name = obj["name"].toString();
+					QString url = obj["url"].toString();
+					
+					QMenu *camSubMenu = new QMenu(name, ipCamerasMenu);
+					
+					QAction *addCamAction = new QAction("Add to Scene", camSubMenu);
+					connect(addCamAction, &QAction::triggered, this, [name, url]() {
+						OBSSourceAutoRelease existingSrc = obs_get_source_by_name(name.toUtf8().constData());
+						if (existingSrc) {
+							obs_frontend_source_list scenes = {};
+							obs_frontend_get_scenes(&scenes);
+							for (size_t k = 0; k < scenes.sources.num; k++) {
+								obs_source_t *scene_source = scenes.sources.array[k];
+								obs_scene_t *scene = obs_scene_from_source(scene_source);
+								if (scene) obs_scene_add(scene, existingSrc);
+							}
+							obs_frontend_source_list_free(&scenes);
+						} else {
+							OBSDataAutoRelease s = obs_data_create();
+							obs_data_set_string(s, "input", url.toUtf8().constData());
+							obs_data_set_bool(s, "is_local_file", false);
+							obs_source_t *newSrc = obs_source_create("ffmpeg_source", name.toUtf8().constData(), s, nullptr);
+							if (newSrc) {
+								obs_frontend_source_list scenes = {};
+								obs_frontend_get_scenes(&scenes);
+								for (size_t k = 0; k < scenes.sources.num; k++) {
+									obs_source_t *scene_source = scenes.sources.array[k];
+									obs_scene_t *scene = obs_scene_from_source(scene_source);
+									if (scene) obs_scene_add(scene, newSrc);
+								}
+								obs_frontend_source_list_free(&scenes);
+								obs_source_release(newSrc);
+							}
+						}
+					});
+					camSubMenu->addAction(addCamAction);
+					
+					QAction *deleteCamAction = new QAction("Delete from Saved", camSubMenu);
+					connect(deleteCamAction, &QAction::triggered, this, [name]() {
+						config_t *cfg = OBSBasic::Get()->Config();
+						if (!cfg) return;
+						const char *str = config_get_string(cfg, "IPCameras", "Cameras");
+						if (str && *str) {
+							QJsonDocument d = QJsonDocument::fromJson(QByteArray(str));
+							if (d.isArray()) {
+								QJsonArray a = d.array();
+								for (int j = 0; j < a.size(); ++j) {
+									if (a[j].toObject()["name"].toString() == name) {
+										a.removeAt(j);
+										break;
+									}
+								}
+								QJsonDocument newD(a);
+								config_set_string(cfg, "IPCameras", "Cameras", newD.toJson(QJsonDocument::Compact).constData());
+								config_save_safe(cfg, "tmp", nullptr);
+							}
+						}
+					});
+					camSubMenu->addAction(deleteCamAction);
+					
+					ipCamerasMenu->addMenu(camSubMenu);
+				}
+			}
+		}
+	}
+	
+	addSourceMenu->addMenu(ipCamerasMenu);
+	addSourceMenu->addSeparator();
+
+	// --- RESTORED STANDARD OBS SOURCES ---
+	const char *unversioned_type;
+	const char *type;
+	size_t type_idx = 0;
+
+	while (obs_enum_input_types2(++type_idx, &type, &unversioned_type)) {
+		const char *name = obs_source_get_display_name(type);
+		uint32_t caps = obs_get_source_output_flags(type);
+		if ((caps & OBS_SOURCE_CAP_DISABLED) != 0) continue;
+		if ((caps & OBS_SOURCE_DEPRECATED) != 0) continue;
+
+		QAction *action = new QAction(name, this);
+		QIcon icon = GetSourceIcon(type);
+		action->setIcon(icon);
+		QString nameStr = QString::fromUtf8(name);
+		connect(action, &QAction::triggered, this, [this, nameStr]() {
+			AddSourceDialog(nameStr);
+		});
+		addSourceMenu->addAction(action);
+	}
+	
+	addSourceMenu->addSeparator();
+	// addCustomSource("Desktop", "monitor_capture");
+	// addCustomSource("YouTube URL", "ffmpeg_source");
+	// addCustomSource("Color Source", "color_source_v3");
+	// addCustomSource("Web source URL", "ffmpeg_source");
+	// addCustomSource("RTMP servers", "ffmpeg_source");
+	// addCustomSource("Game", "game_capture");
+
+	addSourceMenu->addSeparator();
+	QAction *allSourcesAction = new QAction(QTStr("Basic.SourceSelect.Recent"), this);
+	connect(allSourcesAction, &QAction::triggered, this, [this]() {
+		AddSourceDialog(QTStr("Basic.SourceSelect.Recent"));
+	});
+	addSourceMenu->addAction(allSourcesAction);
+
+	popup.addMenu(addSourceMenu);
 	popup.addSeparator();
 
 	if (!preview && !sourceSelected) {
@@ -793,10 +998,10 @@ static inline bool should_show_properties(obs_source_t *source, const char *id)
 	return true;
 }
 
-void OBSBasic::AddSourceDialog()
+void OBSBasic::AddSourceDialog(const QString &initialType)
 {
-	QAction *action = qobject_cast<QAction *>(sender());
-	if (!action) {
+	QObject *senderObj = sender();
+	if (!senderObj && initialType.isEmpty()) {
 		return;
 	}
 
@@ -805,9 +1010,26 @@ void OBSBasic::AddSourceDialog()
 	}
 
 	addWindow = new OBSBasicSourceSelect(this, undo_s);
-	addWindow->show();
-
 	addWindow->setAttribute(Qt::WA_DeleteOnClose, true);
+	if (!initialType.isEmpty()) {
+		addWindow->setInitialType(initialType);
+	}
+
+	QStringList quickSources = {
+		"PowerPoint", "PDF", "Images & Videos",
+		"YouTube URL", "Web source URL",
+		"IP Cameras", "RTMP servers",
+		"Text (GDI+)", "Text (FreeType 2)"
+	};
+	if (quickSources.contains(initialType)) {
+		addWindow->on_createNewSource_clicked(false);
+		if (addWindow) {
+			addWindow->close();
+		}
+		return;
+	}
+
+	addWindow->show();
 	connect(this, &OBSBasic::sourceUuidDropped, addWindow, &OBSBasicSourceSelect::sourceDropped);
 }
 

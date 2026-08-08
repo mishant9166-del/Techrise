@@ -285,6 +285,11 @@ private:
 	void LoadProject();
 
 public slots:
+	void onAddPDFClicked();
+	void on_actionPro_triggered();
+	void on_actionLogout_triggered();
+	void CustomStudioModeClicked();
+	void CustomSettingsClicked();
 	void close();
 	void UpdatePatronJson(const std::string &text, const std::string &error);
 	void UpdateEditMenu();
@@ -341,9 +346,16 @@ signals:
 	 */
 private:
 	std::shared_ptr<Auth> auth;
+	std::map<std::string, OBSOutput> secondaryStreams;
+	std::map<std::string, OBSService> secondaryServices;
 
 public:
 	inline Auth *GetAuth() { return auth.get(); }
+	inline void ClearAuth() { auth.reset(); }
+	std::string mainStreamPlatform;
+	bool IsSecondaryStreamActive(const std::string& platform);
+	void StopSecondaryStream(const std::string& platform);
+	bool StartSecondaryStream(const std::string& platform, obs_service_t* service);
 
 	/* -------------------------------------
 	 * MARK: - OBSBasic_Browser
@@ -439,6 +451,8 @@ public slots:
 	 * -------------------------------------
 	 */
 private:
+	QPointer<QToolBar> leftNavBar;
+	QPointer<QDockWidget> propertiesDock;
 	QPointer<QDockWidget> statsDock;
 	QByteArray startingDockLayout;
 	QStringList extraDockNames;
@@ -664,6 +678,8 @@ public:
 	void CreateFiltersWindow(obs_source_t *source);
 	void CreateEditTransformWindow(obs_sceneitem_t *item);
 	void CreatePropertiesWindow(obs_source_t *source);
+	void CreatePropertiesDock(obs_source_t *source, const char *dockType);
+	
 
 	void UploadLog(const char *subdir, const char *file, OBS::LogFileType uploadType);
 
@@ -1180,7 +1196,7 @@ private:
 	static void SourceRenamed(void *data, calldata_t *params);
 
 private slots:
-	void AddSourceDialog();
+	void AddSourceDialog(const QString &initialType = QString());
 	void RenameSources(OBSSource source, QString newName, QString prevName);
 
 	void ReorderSources(OBSScene scene);
@@ -1686,10 +1702,19 @@ public:
 public slots:
 	void SetupBroadcast();
 
+	void CustomRecordClicked();
+	void CustomStreamClicked();
+	void CustomScreenshotClicked();
+
+
+
 signals:
 	/* Broadcast Flow signals */
 	void BroadcastFlowEnabled(bool enabled);
 	void BroadcastStreamReady(bool ready);
 	void BroadcastStreamActive();
 	void BroadcastStreamStarted(bool autoStop);
+	
+	void SecondaryStreamStarted(const QString& platform);
+	void SecondaryStreamStopped(const QString& platform, int code);
 };
