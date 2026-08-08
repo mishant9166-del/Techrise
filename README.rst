@@ -6,7 +6,7 @@ What is Techrise Software?
 
 Techrise Software is designed for capturing, compositing, encoding, recording, and streaming video content, efficiently, specifically tailored for enterprise environments and remote license management.
 
-It is based on the open-source OBS Studio project and distributed under the GNU General Public License v2 (or any later version) - see the accompanying COPYING file for more details.
+It is an open-source project and distributed under the GNU General Public License v2 (or any later version) - see the accompanying COPYING file for more details.
 
 Quick Links
 -----------

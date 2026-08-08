@@ -30,7 +30,7 @@ void OAuthCallbackServer::incomingConnection(qintptr socketDescriptor) {
                 QString code = query.queryItemValue("code");
                 QString state = query.queryItemValue("state");
                 
-                QString response = "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\n\r\n<html><body><h1>Authentication Successful!</h1><p>You can close this window and return to OBS.</p></body></html>";
+                QString response = "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\n\r\n<html><body><h1>Authentication Successful!</h1><p>You can close this window and return to Techrise.</p></body></html>";
                 socket->write(response.toUtf8());
                 socket->flush();
                 socket->waitForBytesWritten(1000);
