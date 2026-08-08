@@ -330,8 +330,7 @@ void CustomStreamDialog::AddChannelCard(const QString &name, OAuthClient* client
         settingsWidget->setVisible(!settingsWidget->isVisible());
     });
 
-    // Network manager for downloading avatars
-    QNetworkAccessManager* avatarManager = new QNetworkAccessManager(this);
+    // Avatar manager removed as it was unused
 
     // Update UI Lambda
     auto updateUI = [=]() {

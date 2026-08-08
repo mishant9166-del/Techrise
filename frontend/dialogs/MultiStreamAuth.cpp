@@ -85,6 +85,7 @@ void OAuthClient::updateSession(const PlatformSession& newSession) {
 }
 
 void OAuthClient::onCodeReceived(const QString& code, const QString& state) {
+    (void)state;
     if (callbackServer) callbackServer->close();
     exchangeCodeForToken(code);
 }
