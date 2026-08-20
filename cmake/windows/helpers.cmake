@@ -491,7 +491,11 @@ function(_bundle_dependencies target)
 
     list(APPEND plugin_stems ${plugin_stem})
 
-    if(plugin_filename MATCHES "^(.+d)\\.dll$" AND CMAKE_MATCH_COUNT EQUAL 1 AND NOT CMAKE_MATCH_1 IN_LIST debug_dll_exceptions)
+    if(
+      plugin_filename MATCHES "^(.+d)\\.dll$"
+      AND CMAKE_MATCH_COUNT EQUAL 1
+      AND NOT CMAKE_MATCH_1 IN_LIST debug_dll_exceptions
+    )
       list(APPEND plugin_${plugin_stem}_debug ${plugin})
     else()
       list(APPEND plugin_${plugin_stem} ${plugin})
